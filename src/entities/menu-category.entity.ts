@@ -4,33 +4,23 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
+import { MenuItem } from './menu-item.entity';
 
-@Entity('users')
-export class User {
+@Entity('menu_categories')
+export class MenuCategory {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
-  email: string;
-
   @Column()
-  password: string;
-
-  @Column()
-  firstName: string;
-
-  @Column()
-  lastName: string;
+  name: string;
 
   @Column({ nullable: true })
-  phone: string;
+  description: string;
 
-  @Column({ nullable: true })
-  profileImage: string;
-
-  @Column({ default: 'admin' })
-  role: string; // 'super_admin', 'admin'
+  @Column({ default: 0 })
+  sortOrder: number;
 
   @Column({ default: true })
   isActive: boolean;
@@ -41,6 +31,6 @@ export class User {
   @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
 
-  @Column({ nullable: true })
-  lastLoginAt: Date;
+  @OneToMany(() => MenuItem, (menuItem) => menuItem.category)
+  menuItems: MenuItem[];
 }

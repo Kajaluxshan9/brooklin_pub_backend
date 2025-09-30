@@ -1,10 +1,20 @@
-import { Controller, Post, Body, UseGuards, Request, Get, Res, Req } from '@nestjs/common';
-import type { Response, Request as ExpressRequest } from 'express';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  Get,
+  Res,
+  Patch,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 
@@ -13,9 +23,12 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('login')
-  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body() loginDto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.login(loginDto);
-    
+
     // Set the JWT token as an httpOnly cookie
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
@@ -27,20 +40,21 @@ export class AuthController {
     // Return user data without the token
     return {
       user: result.user,
-      message: 'Login successful'
+      message: 'Login successful',
     };
   }
 
   @Post('logout')
-  async logout(@Res({ passthrough: true }) res: Response) {
+  logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie('access_token');
     return { message: 'Logged out successfully' };
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  async getMe(@Request() req) {
-    return this.authService.getProfile(req.user.userId);
+  async getMe(@Request() req: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.authService.getProfile(req.user.userId as string);
   }
 
   @Post('register')
@@ -51,8 +65,15 @@ export class AuthController {
 
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
-  async changePassword(@Request() req, @Body() changePasswordDto: ChangePasswordDto) {
-    return this.authService.changePassword(req.user.userId, changePasswordDto);
+  async changePassword(
+    @Request() req: any,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      req.user.userId as string,
+      changePasswordDto,
+    );
   }
 
   @Post('forgot-password')
@@ -62,7 +83,21 @@ export class AuthController {
 
   @Get('profile')
   @UseGuards(JwtAuthGuard)
-  getProfile(@Request() req) {
+  getProfile(@Request() req: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access
     return req.user;
+  }
+
+  @Patch('profile')
+  @UseGuards(JwtAuthGuard)
+  async updateProfile(
+    @Request() req: any,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    return this.authService.updateUser(
+      req.user.userId as string,
+      updateUserDto,
+    );
   }
 }

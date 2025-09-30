@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -8,6 +14,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -19,8 +26,10 @@ export class AuthService {
 
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
-    
-    const user = await this.userRepository.findOne({ where: { email, isActive: true } });
+
+    const user = await this.userRepository.findOne({
+      where: { email, isActive: true },
+    });
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -41,16 +50,17 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        phone: user.phone,
       },
     };
   }
 
-  async getProfile(userId: number) {
-    const user = await this.userRepository.findOne({ 
+  async getProfile(userId: string) {
+    const user = await this.userRepository.findOne({
       where: { id: userId, isActive: true },
-      select: ['id', 'email', 'firstName', 'lastName', 'role']
+      select: ['id', 'email', 'firstName', 'lastName', 'role', 'phone'],
     });
-    
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -61,7 +71,9 @@ export class AuthService {
   async register(registerDto: RegisterDto) {
     const { email, password, firstName, lastName, role } = registerDto;
 
-    const existingUser = await this.userRepository.findOne({ where: { email } });
+    const existingUser = await this.userRepository.findOne({
+      where: { email },
+    });
     if (existingUser) {
       throw new ConflictException('User with this email already exists');
     }
@@ -90,7 +102,7 @@ export class AuthService {
     };
   }
 
-  async changePassword(userId: number, changePasswordDto: ChangePasswordDto) {
+  async changePassword(userId: string, changePasswordDto: ChangePasswordDto) {
     const { currentPassword, newPassword } = changePasswordDto;
 
     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -98,7 +110,10 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    const isCurrentPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.password,
+    );
     if (!isCurrentPasswordValid) {
       throw new UnauthorizedException('Current password is incorrect');
     }
@@ -125,13 +140,13 @@ export class AuthService {
   }
 
   async createSuperAdmin() {
-    const existingUser = await this.userRepository.findOne({ 
-      where: { email: 'thavamkajan2000@gmail.com' } 
+    const existingUser = await this.userRepository.findOne({
+      where: { email: 'thavamkajan2000@gmail.com' },
     });
 
     if (!existingUser) {
       const hashedPassword = await bcrypt.hash('Kajan@2002', 12);
-      
+
       const superAdmin = this.userRepository.create({
         email: 'thavamkajan2000@gmail.com',
         password: hashedPassword,
@@ -143,5 +158,97 @@ export class AuthService {
       await this.userRepository.save(superAdmin);
       console.log('Super admin created successfully');
     }
+  }
+
+  async findAllUsers() {
+    return await this.userRepository.find({
+      select: [
+        'id',
+        'email',
+        'firstName',
+        'lastName',
+        'phone',
+        'role',
+        'isActive',
+        'createdAt',
+        'lastLoginAt',
+      ],
+      order: {
+        createdAt: 'DESC',
+      },
+    });
+  }
+
+  async findUserById(id: string) {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      select: [
+        'id',
+        'email',
+        'firstName',
+        'lastName',
+        'phone',
+        'role',
+        'isActive',
+        'createdAt',
+        'lastLoginAt',
+      ],
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    return user;
+  }
+
+  async toggleUserStatus(id: string) {
+    const user = await this.findUserById(id);
+    user.isActive = !user.isActive;
+    return await this.userRepository.save(user);
+  }
+
+  async deleteUser(id: string) {
+    const user = await this.findUserById(id);
+    await this.userRepository.remove(user);
+    return { message: 'User deleted successfully' };
+  }
+
+  async updateUser(id: string, updateUserDto: UpdateUserDto) {
+    const user = await this.findUserById(id);
+
+    if (updateUserDto.email && updateUserDto.email !== user.email) {
+      const existingUser = await this.userRepository.findOne({
+        where: { email: updateUserDto.email },
+      });
+      if (existingUser) {
+        throw new ConflictException('User with this email already exists');
+      }
+    }
+
+    const { password, confirmPassword, ...rest } = updateUserDto;
+
+    if (password) {
+      if (confirmPassword && password !== confirmPassword) {
+        throw new BadRequestException('Passwords do not match');
+      }
+      user.password = await bcrypt.hash(password, 12);
+    }
+
+    Object.assign(user, rest);
+
+    const saved = await this.userRepository.save(user);
+
+    return {
+      id: saved.id,
+      email: saved.email,
+      firstName: saved.firstName,
+      lastName: saved.lastName,
+      phone: saved.phone,
+      role: saved.role,
+      isActive: saved.isActive,
+      createdAt: saved.createdAt,
+      lastLoginAt: saved.lastLoginAt,
+    };
   }
 }
