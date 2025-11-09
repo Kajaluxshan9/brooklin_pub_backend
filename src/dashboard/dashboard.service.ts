@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThan, Repository } from 'typeorm';
+import moment from 'moment-timezone';
 import { MenuItem } from '../entities/menu-item.entity';
 import { Special } from '../entities/special.entity';
 import { Event } from '../entities/event.entity';
@@ -11,6 +12,7 @@ import { MenuCategory } from '../entities/menu-category.entity';
 
 @Injectable()
 export class DashboardService {
+  private readonly TIMEZONE = 'America/Toronto';
   constructor(
     @InjectRepository(MenuItem)
     private readonly menuItemRepository: Repository<MenuItem>,
@@ -29,8 +31,6 @@ export class DashboardService {
   ) {}
 
   async getSummary() {
-    const now = new Date();
-
     const [
       menuItemsTotal,
       menuItemsActive,
@@ -78,30 +78,17 @@ export class DashboardService {
         take: 5,
       }),
       this.eventRepository.find({
-        where: { startDateTime: MoreThan(now), isActive: true },
-        order: { startDateTime: 'ASC' },
-        select: [
-          'id',
-          'title',
-          'startDateTime',
-          'endDateTime',
-          'type',
-          'currentBookings',
-          'maxCapacity',
-        ],
+        where: {
+          eventStartDate: MoreThan(moment().tz(this.TIMEZONE).toDate()),
+          isActive: true,
+        },
+        order: { eventStartDate: 'ASC' },
+        select: ['id', 'title', 'eventStartDate', 'eventEndDate', 'type'],
         take: 5,
       }),
       this.todoRepository.find({
         order: { updatedAt: 'DESC' },
-        select: [
-          'id',
-          'title',
-          'status',
-          'priority',
-          'assignedToId',
-          'updatedAt',
-        ],
-        relations: ['assignedTo'],
+        select: ['id', 'title', 'status', 'priority', 'updatedAt'],
         take: 5,
       }),
       this.userRepository.find({
@@ -157,12 +144,7 @@ export class DashboardService {
         menuItems: recentMenuItems,
         specials: recentSpecials,
         events: upcomingEvents,
-        todos: recentTodos.map((todo) => ({
-          ...todo,
-          assignedToName: todo.assignedTo
-            ? `${todo.assignedTo.firstName} ${todo.assignedTo.lastName}`
-            : null,
-        })),
+        todos: recentTodos,
         users: recentUsers,
       },
     };

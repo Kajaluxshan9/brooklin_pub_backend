@@ -18,13 +18,11 @@ export class EventsService {
       title: createEventDto.title,
       description: createEventDto.description,
       type: createEventDto.type,
-      startDateTime: createEventDto.startDateTime,
-      endDateTime: createEventDto.endDateTime,
-      maxCapacity: createEventDto.capacity,
-      currentBookings: createEventDto.currentBookings || 0,
-      isRecurring: createEventDto.isRecurring || false,
-      ticketPrice: createEventDto.price || 0,
-      imageUrl: createEventDto.imageUrl || null,
+      displayStartDate: createEventDto.displayStartDate,
+      displayEndDate: createEventDto.displayEndDate,
+      eventStartDate: createEventDto.eventStartDate,
+      eventEndDate: createEventDto.eventEndDate,
+      imageUrls: createEventDto.imageUrls || [],
       isActive: createEventDto.isActive !== false,
     });
     return this.eventRepository.save(event);
@@ -33,7 +31,7 @@ export class EventsService {
   async findAll(): Promise<Event[]> {
     return await this.eventRepository.find({
       order: {
-        startDateTime: 'ASC',
+        eventStartDate: 'ASC',
       },
     });
   }
@@ -42,7 +40,7 @@ export class EventsService {
     return await this.eventRepository.find({
       where: { isActive: true },
       order: {
-        startDateTime: 'ASC',
+        eventStartDate: 'ASC',
       },
     });
   }
@@ -51,9 +49,9 @@ export class EventsService {
     const now = new Date();
     return await this.eventRepository
       .createQueryBuilder('event')
-      .where('event.startDateTime >= :now', { now })
+      .where('event.eventStartDate >= :now', { now })
       .andWhere('event.isActive = :isActive', { isActive: true })
-      .orderBy('event.startDateTime', 'ASC')
+      .orderBy('event.eventStartDate', 'ASC')
       .getMany();
   }
 
@@ -80,11 +78,5 @@ export class EventsService {
   async remove(id: string): Promise<void> {
     const event = await this.findOne(id);
     await this.eventRepository.remove(event);
-  }
-
-  async updateBookings(id: string, bookings: number): Promise<Event> {
-    const event = await this.findOne(id);
-    event.currentBookings = bookings;
-    return await this.eventRepository.save(event);
   }
 }

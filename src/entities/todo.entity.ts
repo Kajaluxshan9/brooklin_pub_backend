@@ -49,11 +49,7 @@ export class Todo {
   status: TodoStatus;
 
   @Column({ type: 'timestamp', nullable: true })
-  dueDate: Date;
-
-  @Column({ nullable: true })
-  assignedToId: string;
-
+  dueDate: Date | null;
   @Column({ nullable: true })
   createdById: string;
 
@@ -65,10 +61,6 @@ export class Todo {
 
   @Column({ type: 'timestamp', nullable: true })
   completedAt: Date | null;
-
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'assignedToId' })
-  assignedTo: User;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'createdById' })

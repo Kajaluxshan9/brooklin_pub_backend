@@ -20,7 +20,17 @@ export class MenuItem {
   @Column('text')
   description: string;
 
-  @Column('decimal', { precision: 8, scale: 2 })
+  // Store price as decimal(8,2) in Postgres but expose as number in TS
+  @Column('decimal', {
+    precision: 8,
+    scale: 2,
+    transformer: {
+      to: (value: number) =>
+        value === null || value === undefined ? null : value,
+      from: (value: string) =>
+        value === null || value === undefined ? null : parseFloat(value),
+    },
+  })
   price: number;
 
   @Column({ nullable: true })
@@ -35,8 +45,9 @@ export class MenuItem {
   @Column({ default: true })
   isAvailable: boolean;
 
-  @Column({ nullable: true })
-  imageUrl: string;
+  // Use Postgres text[] with a proper default empty array
+  @Column('text', { array: true, default: () => 'ARRAY[]::text[]' })
+  imageUrls: string[]; // Support multiple images (up to 5)
 
   @Column({ default: 0 })
   sortOrder: number;

@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Todo, TodoStatus } from '../entities/todo.entity';
+import { Todo, TodoStatus, TodoPriority } from '../entities/todo.entity';
 import { User } from '../entities/user.entity';
 import { CreateTodoDto } from './dto/create-todo.dto';
 import { UpdateTodoDto } from './dto/update-todo.dto';
@@ -17,20 +22,64 @@ export class TodosService {
 
   async create(createTodoDto: CreateTodoDto, userId: string): Promise<Todo> {
     const todo = new Todo();
-    Object.assign(todo, {
-      title: createTodoDto.title,
-      description: createTodoDto.description,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      priority: createTodoDto.priority as any,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      status: (createTodoDto.status as any) || 'pending',
-      // Automatically assign to current user if no assignedUserId is provided
-      assignedToId: createTodoDto.assignedUserId || userId,
-      createdById: userId,
-      dueDate: createTodoDto.dueDate || null,
-    });
 
-    return this.todoRepository.save(todo);
+    // Basic payload validation to avoid unexpected DB errors
+    if (!createTodoDto || !createTodoDto.title || !createTodoDto.description) {
+      throw new BadRequestException('title and description are required');
+    }
+
+    // Coerce/validate enums to the entity enums
+    const priority =
+      (createTodoDto.priority as unknown as TodoPriority) ||
+      TodoPriority.MEDIUM;
+    const status =
+      (createTodoDto.status as unknown as TodoStatus) || TodoStatus.PENDING;
+
+    todo.title = createTodoDto.title;
+    todo.description = createTodoDto.description;
+    todo.priority = priority;
+    todo.status = status;
+    // Accept either Date or ISO string for dueDate
+    const incomingDue = (createTodoDto.dueDate as any) || null;
+    if (incomingDue === null) {
+      todo.dueDate = null;
+    } else if (typeof incomingDue === 'string') {
+      const parsed = new Date(incomingDue);
+      todo.dueDate = isNaN(parsed.getTime()) ? null : parsed;
+    } else if (incomingDue instanceof Date) {
+      todo.dueDate = incomingDue;
+    } else {
+      todo.dueDate = null;
+    }
+
+    // Try to resolve the creating user entity for proper relation setting
+    try {
+      if (userId) {
+        const user = await this.userRepository.findOne({
+          where: { id: userId },
+        });
+        if (user) {
+          todo.createdBy = user;
+        } else {
+          // fallback to setting the id only
+          todo.createdById = userId;
+        }
+      }
+    } catch (err) {
+      // Non-fatal: proceed without relation if user lookup fails
+      console.warn('User lookup failed when creating todo:', err);
+      todo.createdById = userId;
+    }
+
+    try {
+      // Log the todo object we are about to save for debugging
+      console.debug('Saving todo to DB:', todo);
+      return await this.todoRepository.save(todo);
+    } catch (err) {
+      // Log the underlying error and throw a clearer exception
+      console.error('Error saving todo:', err);
+      throw new InternalServerErrorException('Failed to save todo');
+    }
   }
 
   async findAll(): Promise<Todo[]> {
@@ -43,7 +92,7 @@ export class TodosService {
 
   async findByUser(userId: string): Promise<Todo[]> {
     return await this.todoRepository.find({
-      where: [{ assignedToId: userId }, { createdById: userId }],
+      where: { createdById: userId },
       order: {
         createdAt: 'DESC',
       },
@@ -64,10 +113,6 @@ export class TodosService {
 
   async update(id: string, updateTodoDto: UpdateTodoDto): Promise<Todo> {
     const todo = await this.findOne(id);
-
-    if (updateTodoDto.assignedUserId) {
-      todo.assignedToId = updateTodoDto.assignedUserId;
-    }
 
     Object.assign(todo, {
       title: updateTodoDto.title,

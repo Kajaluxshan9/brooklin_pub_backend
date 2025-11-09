@@ -28,11 +28,6 @@ export class CreateTodoDto {
   @IsEnum(TodoStatus)
   @IsOptional()
   status?: TodoStatus;
-
-  @IsString()
-  @IsOptional()
-  assignedUserId?: string;
-
   @IsDate()
   @Type(() => Date)
   @IsOptional()

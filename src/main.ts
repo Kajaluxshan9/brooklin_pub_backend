@@ -16,8 +16,9 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Enable global validation pipe
-  app.useGlobalPipes(new ValidationPipe());
+  // Enable global validation pipe with transform so incoming payloads are
+  // converted to DTO classes and types (e.g., numbers) are coerced.
+  app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
 
   // Create super admin on startup
   const authService = app.get(AuthService);

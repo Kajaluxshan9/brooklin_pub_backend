@@ -2,20 +2,20 @@ import {
   IsString,
   IsEnum,
   IsDate,
-  IsNumber,
   IsBoolean,
   IsOptional,
-  Min,
+  IsArray,
+  IsUrl,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum EventType {
   LIVE_MUSIC = 'live_music',
-  TRIVIA = 'trivia',
-  SPORTS = 'sports',
-  SPECIAL_DINNER = 'special_dinner',
-  PARTY = 'party',
-  OTHER = 'other',
+  SPORTS_VIEWING = 'sports_viewing',
+  TRIVIA_NIGHT = 'trivia_night',
+  KARAOKE = 'karaoke',
+  PRIVATE_PARTY = 'private_party',
+  SPECIAL_EVENT = 'special_event',
 }
 
 export class CreateEventDto {
@@ -30,41 +30,24 @@ export class CreateEventDto {
 
   @IsDate()
   @Type(() => Date)
-  startDateTime: Date;
+  displayStartDate: Date;
 
   @IsDate()
   @Type(() => Date)
-  endDateTime: Date;
+  displayEndDate: Date;
 
-  @IsNumber()
-  @Min(1)
-  capacity: number;
+  @IsDate()
+  @Type(() => Date)
+  eventStartDate: Date;
 
-  @IsNumber()
-  @Min(0)
+  @IsDate()
+  @Type(() => Date)
+  eventEndDate: Date;
+
+  @IsArray()
+  @IsUrl({}, { each: true })
   @IsOptional()
-  currentBookings?: number;
-
-  @IsBoolean()
-  @IsOptional()
-  isRecurring?: boolean;
-
-  @IsString()
-  @IsOptional()
-  recurringDays?: string;
-
-  @IsBoolean()
-  @IsOptional()
-  requiresReservation?: boolean;
-
-  @IsNumber()
-  @Min(0)
-  @IsOptional()
-  price?: number;
-
-  @IsString()
-  @IsOptional()
-  imageUrl?: string;
+  imageUrls?: string[];
 
   @IsBoolean()
   @IsOptional()

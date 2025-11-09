@@ -3,9 +3,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SpecialsService } from './specials.service';
 import { SpecialsController } from './specials.controller';
 import { Special } from '../entities/special.entity';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Special])],
+  imports: [TypeOrmModule.forFeature([Special]), UploadModule],
   controllers: [SpecialsController],
   providers: [SpecialsService],
   exports: [SpecialsService],

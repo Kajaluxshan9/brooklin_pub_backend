@@ -9,8 +9,21 @@ import {
 export enum SpecialType {
   DAILY = 'daily',
   SEASONAL = 'seasonal',
-  HOLIDAY = 'holiday',
-  LIMITED_TIME = 'limited_time',
+}
+
+export enum DayOfWeek {
+  MONDAY = 'monday',
+  TUESDAY = 'tuesday',
+  WEDNESDAY = 'wednesday',
+  THURSDAY = 'thursday',
+  FRIDAY = 'friday',
+  SATURDAY = 'saturday',
+  SUNDAY = 'sunday',
+}
+
+export enum SpecialCategory {
+  REGULAR = 'regular',
+  LATE_NIGHT = 'late_night',
 }
 
 @Entity('specials')
@@ -24,12 +37,6 @@ export class Special {
   @Column('text')
   description: string;
 
-  @Column('decimal', { precision: 8, scale: 2, nullable: true })
-  originalPrice: number;
-
-  @Column('decimal', { precision: 8, scale: 2 })
-  specialPrice: number;
-
   @Column({
     type: 'enum',
     enum: SpecialType,
@@ -37,26 +44,42 @@ export class Special {
   })
   type: SpecialType;
 
-  @Column({ type: 'date', nullable: true })
-  startDate: Date;
+  // For DAILY specials - which day this special is for
+  @Column({
+    type: 'enum',
+    enum: DayOfWeek,
+    nullable: true,
+  })
+  dayOfWeek: DayOfWeek;
 
-  @Column({ type: 'date', nullable: true })
-  endDate: Date;
+  // For DAILY specials - category (regular or late night)
+  @Column({
+    type: 'enum',
+    enum: SpecialCategory,
+    default: SpecialCategory.REGULAR,
+    nullable: true,
+  })
+  specialCategory: SpecialCategory;
 
-  @Column('simple-array', { nullable: true })
-  availableDays: string[]; // ['monday', 'tuesday', 'wednesday']
+  // For SEASONAL specials - display period (when to show the special)
+  @Column({ type: 'timestamptz', nullable: true })
+  displayStartDate: Date;
 
-  @Column({ type: 'time', nullable: true })
-  startTime: string;
+  @Column({ type: 'timestamptz', nullable: true })
+  displayEndDate: Date;
 
-  @Column({ type: 'time', nullable: true })
-  endTime: string;
+  // For SEASONAL specials - actual special period (when discount is valid)
+  @Column({ type: 'timestamptz', nullable: true })
+  specialStartDate: Date;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  specialEndDate: Date;
 
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ nullable: true })
-  imageUrl: string;
+  @Column('text', { array: true, default: '{}' })
+  imageUrls: string[];
 
   @Column({ default: 0 })
   sortOrder: number;

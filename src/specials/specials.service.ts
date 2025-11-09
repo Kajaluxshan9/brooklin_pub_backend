@@ -4,12 +4,14 @@ import { Repository } from 'typeorm';
 import { Special } from '../entities/special.entity';
 import { CreateSpecialDto } from './dto/create-special.dto';
 import { UpdateSpecialDto } from './dto/update-special.dto';
+import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class SpecialsService {
   constructor(
     @InjectRepository(Special)
     private specialRepository: Repository<Special>,
+    private uploadService: UploadService,
   ) {}
 
   async findAll(): Promise<Special[]> {
@@ -49,6 +51,19 @@ export class SpecialsService {
   }
 
   async remove(id: string): Promise<void> {
+    const special = await this.findById(id);
+
+    // Delete images from S3 if they exist
+    if (special.imageUrls && special.imageUrls.length > 0) {
+      for (const imageUrl of special.imageUrls) {
+        try {
+          await this.uploadService.deleteFile(imageUrl);
+        } catch (error) {
+          console.error(`Failed to delete image ${imageUrl}:`, error);
+        }
+      }
+    }
+
     await this.specialRepository.delete(id);
   }
 

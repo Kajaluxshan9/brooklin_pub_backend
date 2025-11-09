@@ -13,6 +13,9 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
+import { ReorderCategoryDto } from './dto/reorder-category.dto';
+import { ReorderMenuItemDto } from './dto/reorder-menu-item.dto';
+import { MoveOrderDto } from './dto/move-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('menu')
@@ -51,6 +54,18 @@ export class MenuController {
     return this.menuService.removeCategory(id);
   }
 
+  @Patch('categories/reorder')
+  @UseGuards(JwtAuthGuard)
+  reorderCategories(@Body() body: ReorderCategoryDto) {
+    return this.menuService.reorderCategory(body.categoryId, body.newOrder);
+  }
+
+  @Patch('categories/:id/move')
+  @UseGuards(JwtAuthGuard)
+  moveCategoryOrder(@Param('id') id: string, @Body() body: MoveOrderDto) {
+    return this.menuService.moveCategoryOrder(id, body.direction);
+  }
+
   // Menu Item endpoints
   @Get('items')
   findAllMenuItems() {
@@ -75,16 +90,50 @@ export class MenuController {
 
   @Patch('items/:id')
   @UseGuards(JwtAuthGuard)
-  updateMenuItem(
+  async updateMenuItem(
     @Param('id') id: string,
     @Body() updateMenuItemDto: UpdateMenuItemDto,
   ) {
-    return this.menuService.updateMenuItem(id, updateMenuItemDto);
+    // Add lightweight logging to help debug 500 errors from the frontend
+    try {
+      console.log(
+        `PATCH /menu/items/${id} payload:`,
+        JSON.stringify(updateMenuItemDto),
+      );
+    } catch (_) {
+      // ignore stringify errors
+    }
+
+    try {
+      const result = await this.menuService.updateMenuItem(
+        id,
+        updateMenuItemDto,
+      );
+      return result;
+    } catch (error) {
+      console.error(
+        `Error updating menu item ${id}:`,
+        error && (error.stack || error),
+      );
+      throw error;
+    }
   }
 
   @Delete('items/:id')
   @UseGuards(JwtAuthGuard)
   removeMenuItem(@Param('id') id: string) {
     return this.menuService.removeMenuItem(id);
+  }
+
+  @Patch('items/reorder')
+  @UseGuards(JwtAuthGuard)
+  reorderMenuItems(@Body() body: ReorderMenuItemDto) {
+    return this.menuService.reorderMenuItem(body.itemId, body.newOrder);
+  }
+
+  @Patch('items/:id/move')
+  @UseGuards(JwtAuthGuard)
+  moveMenuItemOrder(@Param('id') id: string, @Body() body: MoveOrderDto) {
+    return this.menuService.moveMenuItemOrder(id, body.direction);
   }
 }

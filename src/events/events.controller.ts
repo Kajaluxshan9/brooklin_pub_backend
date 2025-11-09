@@ -3,7 +3,7 @@ import {
   Get,
   Post,
   Body,
-  Patch,
+  Put,
   Param,
   Delete,
   UseGuards,
@@ -44,15 +44,9 @@ export class EventsController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Patch(':id')
+  @Put(':id')
   update(@Param('id') id: string, @Body() updateEventDto: UpdateEventDto) {
     return this.eventsService.update(id, updateEventDto);
-  }
-
-  @UseGuards(JwtAuthGuard)
-  @Patch(':id/bookings')
-  updateBookings(@Param('id') id: string, @Body('bookings') bookings: number) {
-    return this.eventsService.updateBookings(id, bookings);
   }
 
   @UseGuards(JwtAuthGuard)

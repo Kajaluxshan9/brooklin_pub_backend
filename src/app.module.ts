@@ -11,6 +11,7 @@ import { EventsModule } from './events/events.module';
 import { UsersModule } from './users/users.module';
 import { TodosModule } from './todos/todos.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { UploadModule } from './upload/upload.module';
 import { User } from './entities/user.entity';
 import { MenuItem } from './entities/menu-item.entity';
 import { MenuCategory } from './entities/menu-category.entity';
@@ -56,6 +57,7 @@ import { Todo } from './entities/todo.entity';
     UsersModule,
     TodosModule,
     DashboardModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

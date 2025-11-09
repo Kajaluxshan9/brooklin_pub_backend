@@ -41,9 +41,9 @@ export class CreateMenuItemDto {
   @IsOptional()
   isAvailable?: boolean;
 
-  @IsString()
+  @IsArray()
   @IsOptional()
-  imageUrl?: string;
+  imageUrls?: string[]; // Support multiple images (up to 5)
 
   @IsNumber()
   @IsOptional()

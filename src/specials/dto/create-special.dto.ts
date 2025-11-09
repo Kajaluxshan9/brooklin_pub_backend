@@ -3,13 +3,13 @@
   IsNotEmpty,
   IsOptional,
   IsBoolean,
-  IsNumber,
   IsArray,
   IsEnum,
   IsDate,
-  Min,
+  ArrayMaxSize,
 } from 'class-validator';
-import { SpecialType } from '../../entities/special.entity';
+import { Type } from 'class-transformer';
+import { SpecialType, DayOfWeek, SpecialCategory } from '../../entities/special.entity';
 
 export class CreateSpecialDto {
   @IsString()
@@ -20,47 +20,51 @@ export class CreateSpecialDto {
   @IsNotEmpty()
   description: string;
 
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  @IsOptional()
-  originalPrice?: number;
-
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  specialPrice: number;
-
   @IsEnum(SpecialType)
   type: SpecialType;
 
+  // For DAILY specials
   @IsOptional()
+  @IsEnum(DayOfWeek)
+  dayOfWeek?: DayOfWeek;
+
+  // For DAILY specials - category (regular or late night)
+  @IsOptional()
+  @IsEnum(SpecialCategory)
+  specialCategory?: SpecialCategory;
+
+  // For SEASONAL specials - display dates (UTC timestamps)
+  @IsOptional()
+  @Type(() => Date)
   @IsDate()
-  startDate?: Date;
+  displayStartDate?: Date;
 
   @IsOptional()
+  @Type(() => Date)
   @IsDate()
-  endDate?: Date;
+  displayEndDate?: Date;
 
-  @IsArray()
+  // For SEASONAL specials - special period dates (UTC timestamps)
   @IsOptional()
-  availableDays?: string[];
+  @Type(() => Date)
+  @IsDate()
+  specialStartDate?: Date;
 
-  @IsString()
   @IsOptional()
-  startTime?: string;
-
-  @IsString()
-  @IsOptional()
-  endTime?: string;
+  @Type(() => Date)
+  @IsDate()
+  specialEndDate?: Date;
 
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
 
-  @IsString()
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(5)
   @IsOptional()
-  imageUrl?: string;
+  imageUrls?: string[];
 
-  @IsNumber()
   @IsOptional()
   sortOrder?: number;
 }
