@@ -8,6 +8,9 @@ import {
 
 export enum SpecialType {
   DAILY = 'daily',
+  GAME_TIME = 'game_time',
+  DAY_TIME = 'day_time',
+  CHEF = 'chef',
   SEASONAL = 'seasonal',
 }
 

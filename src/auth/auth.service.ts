@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { User } from '../entities/user.entity';
 import { LoginDto } from './dto/login.dto';
@@ -18,11 +19,19 @@ import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly bcryptSaltRounds: number;
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private jwtService: JwtService,
-  ) {}
+    private configService: ConfigService,
+  ) {
+    this.bcryptSaltRounds = parseInt(
+      this.configService.get<string>('BCRYPT_SALT_ROUNDS', '12'),
+      10,
+    );
+  }
 
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
@@ -78,7 +87,7 @@ export class AuthService {
       throw new ConflictException('User with this email already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(password, this.bcryptSaltRounds);
 
     const user = this.userRepository.create({
       email,
@@ -118,7 +127,11 @@ export class AuthService {
       throw new UnauthorizedException('Current password is incorrect');
     }
 
-    const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+    const hashedNewPassword = await bcrypt.hash(
+      newPassword,
+      this.bcryptSaltRounds,
+    );
+
     user.password = hashedNewPassword;
     await this.userRepository.save(user);
 
@@ -140,23 +153,45 @@ export class AuthService {
   }
 
   async createSuperAdmin() {
+    const superAdminEmail = this.configService.get<string>(
+      'SUPER_ADMIN_EMAIL',
+      'admin@example.com',
+    );
+    const superAdminPassword = this.configService.get<string>(
+      'SUPER_ADMIN_PASSWORD',
+      'ChangeMe123!',
+    );
+    const superAdminFirstName = this.configService.get<string>(
+      'SUPER_ADMIN_FIRST_NAME',
+      'Super',
+    );
+    const superAdminLastName = this.configService.get<string>(
+      'SUPER_ADMIN_LAST_NAME',
+      'Admin',
+    );
+
     const existingUser = await this.userRepository.findOne({
-      where: { email: 'thavamkajan2000@gmail.com' },
+      where: { email: superAdminEmail },
     });
 
     if (!existingUser) {
-      const hashedPassword = await bcrypt.hash('Kajan@2002', 12);
+      const hashedPassword = await bcrypt.hash(
+        superAdminPassword,
+        this.bcryptSaltRounds,
+      );
 
       const superAdmin = this.userRepository.create({
-        email: 'thavamkajan2000@gmail.com',
+        email: superAdminEmail,
         password: hashedPassword,
-        firstName: 'Thavam',
-        lastName: 'Kajan',
+        firstName: superAdminFirstName,
+        lastName: superAdminLastName,
         role: 'super_admin',
       });
 
       await this.userRepository.save(superAdmin);
-      console.log('Super admin created successfully');
+      console.log(
+        `Super admin created successfully with email: ${superAdminEmail}`,
+      );
     }
   }
 
@@ -232,7 +267,7 @@ export class AuthService {
       if (confirmPassword && password !== confirmPassword) {
         throw new BadRequestException('Passwords do not match');
       }
-      user.password = await bcrypt.hash(password, 12);
+      user.password = await bcrypt.hash(password, this.bcryptSaltRounds);
     }
 
     Object.assign(user, rest);

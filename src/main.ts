@@ -11,8 +11,12 @@ async function bootstrap() {
   app.use(cookieParser());
 
   // Enable CORS for frontend communication
+  const corsOrigins = process.env.CORS_ORIGINS?.split(',') || [
+    'http://localhost:3000',
+    'http://localhost:3002',
+  ];
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3002'], // Updated ports
+    origin: corsOrigins,
     credentials: true,
   });
 

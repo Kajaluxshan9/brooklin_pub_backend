@@ -13,6 +13,8 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
+import { CreatePrimaryCategoryDto } from './dto/create-primary-category.dto';
+import { UpdatePrimaryCategoryDto } from './dto/update-primary-category.dto';
 import { ReorderCategoryDto } from './dto/reorder-category.dto';
 import { ReorderMenuItemDto } from './dto/reorder-menu-item.dto';
 import { MoveOrderDto } from './dto/move-order.dto';
@@ -21,6 +23,49 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @Controller('menu')
 export class MenuController {
   constructor(private readonly menuService: MenuService) {}
+
+  // Primary Category endpoints
+  @Get('primary-categories')
+  findAllPrimaryCategories() {
+    return this.menuService.findAllPrimaryCategories();
+  }
+
+  @Get('primary-categories/:id')
+  findPrimaryCategoryById(@Param('id') id: string) {
+    return this.menuService.findPrimaryCategoryById(id);
+  }
+
+  @Post('primary-categories')
+  @UseGuards(JwtAuthGuard)
+  createPrimaryCategory(
+    @Body() createPrimaryCategoryDto: CreatePrimaryCategoryDto,
+  ) {
+    return this.menuService.createPrimaryCategory(createPrimaryCategoryDto);
+  }
+
+  @Patch('primary-categories/:id')
+  @UseGuards(JwtAuthGuard)
+  updatePrimaryCategory(
+    @Param('id') id: string,
+    @Body() updatePrimaryCategoryDto: UpdatePrimaryCategoryDto,
+  ) {
+    return this.menuService.updatePrimaryCategory(id, updatePrimaryCategoryDto);
+  }
+
+  @Delete('primary-categories/:id')
+  @UseGuards(JwtAuthGuard)
+  removePrimaryCategory(@Param('id') id: string) {
+    return this.menuService.removePrimaryCategory(id);
+  }
+
+  @Patch('primary-categories/:id/move')
+  @UseGuards(JwtAuthGuard)
+  movePrimaryCategoryOrder(
+    @Param('id') id: string,
+    @Body() body: MoveOrderDto,
+  ) {
+    return this.menuService.movePrimaryCategoryOrder(id, body.direction);
+  }
 
   // Category endpoints
   @Get('categories')

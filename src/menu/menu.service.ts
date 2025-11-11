@@ -3,10 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MenuCategory } from '../entities/menu-category.entity';
 import { MenuItem } from '../entities/menu-item.entity';
+import { PrimaryCategory } from '../entities/primary-category.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
+import { CreatePrimaryCategoryDto } from './dto/create-primary-category.dto';
+import { UpdatePrimaryCategoryDto } from './dto/update-primary-category.dto';
 import { UploadService } from '../upload/upload.service';
 
 @Injectable()
@@ -16,21 +19,101 @@ export class MenuService {
     private categoryRepository: Repository<MenuCategory>,
     @InjectRepository(MenuItem)
     private menuItemRepository: Repository<MenuItem>,
+    @InjectRepository(PrimaryCategory)
+    private primaryCategoryRepository: Repository<PrimaryCategory>,
     private uploadService: UploadService,
   ) {}
+
+  // Primary Category methods
+  async findAllPrimaryCategories(): Promise<PrimaryCategory[]> {
+    return this.primaryCategoryRepository.find({
+      order: { sortOrder: 'ASC' },
+      relations: ['categories'],
+    });
+  }
+
+  async findPrimaryCategoryById(id: string): Promise<PrimaryCategory> {
+    const primaryCategory = await this.primaryCategoryRepository.findOne({
+      where: { id },
+      relations: ['categories'],
+    });
+    if (!primaryCategory) {
+      throw new NotFoundException(`Primary category with ID ${id} not found`);
+    }
+    return primaryCategory;
+  }
+
+  async createPrimaryCategory(
+    createPrimaryCategoryDto: CreatePrimaryCategoryDto,
+  ): Promise<PrimaryCategory> {
+    const primaryCategory = this.primaryCategoryRepository.create(
+      createPrimaryCategoryDto,
+    );
+    return this.primaryCategoryRepository.save(primaryCategory);
+  }
+
+  async updatePrimaryCategory(
+    id: string,
+    updatePrimaryCategoryDto: UpdatePrimaryCategoryDto,
+  ): Promise<PrimaryCategory> {
+    await this.primaryCategoryRepository.update(id, updatePrimaryCategoryDto);
+    return this.findPrimaryCategoryById(id);
+  }
+
+  async removePrimaryCategory(id: string): Promise<void> {
+    await this.primaryCategoryRepository.delete(id);
+  }
+
+  async movePrimaryCategoryOrder(
+    primaryCategoryId: string,
+    direction: 'up' | 'down',
+  ): Promise<PrimaryCategory> {
+    const primaryCategory =
+      await this.findPrimaryCategoryById(primaryCategoryId);
+    const currentOrder = primaryCategory.sortOrder;
+
+    if (direction === 'up' && currentOrder > 0) {
+      const previousPrimaryCategory =
+        await this.primaryCategoryRepository.findOne({
+          where: { sortOrder: currentOrder - 1 },
+        });
+
+      if (previousPrimaryCategory) {
+        previousPrimaryCategory.sortOrder = currentOrder;
+        primaryCategory.sortOrder = currentOrder - 1;
+
+        await this.primaryCategoryRepository.save(previousPrimaryCategory);
+        return this.primaryCategoryRepository.save(primaryCategory);
+      }
+    } else if (direction === 'down') {
+      const nextPrimaryCategory = await this.primaryCategoryRepository.findOne({
+        where: { sortOrder: currentOrder + 1 },
+      });
+
+      if (nextPrimaryCategory) {
+        nextPrimaryCategory.sortOrder = currentOrder;
+        primaryCategory.sortOrder = currentOrder + 1;
+
+        await this.primaryCategoryRepository.save(nextPrimaryCategory);
+        return this.primaryCategoryRepository.save(primaryCategory);
+      }
+    }
+
+    return primaryCategory;
+  }
 
   // Category methods
   async findAllCategories(): Promise<MenuCategory[]> {
     return this.categoryRepository.find({
       order: { sortOrder: 'ASC' },
-      relations: ['menuItems'],
+      relations: ['menuItems', 'primaryCategory'],
     });
   }
 
   async findCategoryById(id: string): Promise<MenuCategory> {
     const category = await this.categoryRepository.findOne({
       where: { id },
-      relations: ['menuItems'],
+      relations: ['menuItems', 'primaryCategory'],
     });
     if (!category) {
       throw new NotFoundException(`Category with ID ${id} not found`);

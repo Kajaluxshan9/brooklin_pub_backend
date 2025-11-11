@@ -15,6 +15,7 @@ import { UploadModule } from './upload/upload.module';
 import { User } from './entities/user.entity';
 import { MenuItem } from './entities/menu-item.entity';
 import { MenuCategory } from './entities/menu-category.entity';
+import { PrimaryCategory } from './entities/primary-category.entity';
 import { Special } from './entities/special.entity';
 import { Event } from './entities/event.entity';
 import { OpeningHours } from './entities/opening-hours.entity';
@@ -27,24 +28,25 @@ import { Todo } from './entities/todo.entity';
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: () => ({
+      useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        host: 'localhost',
-        port: 5432,
-        username: 'postgres',
-        password: 'Kajan2000#',
-        database: 'brooklinpubfinaldb',
+        host: configService.get<string>('DB_HOST', 'localhost'),
+        port: configService.get<number>('DB_PORT', 5432),
+        username: configService.get<string>('DB_USERNAME', 'postgres'),
+        password: configService.get<string>('DB_PASSWORD'),
+        database: configService.get<string>('DB_NAME', 'brooklinpubfinaldb'),
         entities: [
           User,
           MenuItem,
           MenuCategory,
+          PrimaryCategory,
           Special,
           Event,
           OpeningHours,
           Todo,
         ],
-        synchronize: true,
-        logging: true,
+        synchronize: configService.get<string>('NODE_ENV') !== 'production',
+        logging: configService.get<string>('NODE_ENV') === 'development',
         timezone: 'UTC',
       }),
       inject: [ConfigService],

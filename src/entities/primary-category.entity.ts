@@ -5,14 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
-  ManyToOne,
-  JoinColumn,
 } from 'typeorm';
-import { MenuItem } from './menu-item.entity';
-import { PrimaryCategory } from './primary-category.entity';
+import { MenuCategory } from './menu-category.entity';
 
-@Entity('menu_categories')
-export class MenuCategory {
+@Entity('primary_categories')
+export class PrimaryCategory {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -31,25 +28,12 @@ export class MenuCategory {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ nullable: true })
-  primaryCategoryId: string;
-
-  @ManyToOne(
-    () => PrimaryCategory,
-    (primaryCategory) => primaryCategory.categories,
-    {
-      nullable: true,
-    },
-  )
-  @JoinColumn({ name: 'primaryCategoryId' })
-  primaryCategory: PrimaryCategory;
-
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
   @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
 
-  @OneToMany(() => MenuItem, (menuItem) => menuItem.category)
-  menuItems: MenuItem[];
+  @OneToMany(() => MenuCategory, (category) => category.primaryCategory)
+  categories: MenuCategory[];
 }

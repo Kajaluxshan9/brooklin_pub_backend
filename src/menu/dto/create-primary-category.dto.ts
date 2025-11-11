@@ -1,13 +1,12 @@
-﻿import {
+import {
   IsString,
   IsNotEmpty,
   IsOptional,
   IsBoolean,
   IsNumber,
-  IsUUID,
 } from 'class-validator';
 
-export class CreateCategoryDto {
+export class CreatePrimaryCategoryDto {
   @IsString()
   @IsNotEmpty()
   name: string;
@@ -27,8 +26,4 @@ export class CreateCategoryDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
-
-  @IsUUID()
-  @IsOptional()
-  primaryCategoryId?: string;
 }

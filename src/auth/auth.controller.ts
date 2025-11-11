@@ -29,12 +29,13 @@ export class AuthController {
   ) {
     const result = await this.authService.login(loginDto);
 
-    // Set the JWT token as an httpOnly cookie
+    // Set the JWT token as an httpOnly cookie (1 hour validity)
+    const cookieMaxAge = parseInt(process.env.COOKIE_MAX_AGE || '3600000', 10); // 1 hour in milliseconds
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      maxAge: cookieMaxAge,
     });
 
     // Return user data without the token
@@ -94,10 +95,7 @@ export class AuthController {
     @Request() req: any,
     @Body() updateUserDto: UpdateUserDto,
   ) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return this.authService.updateUser(
-      req.user.userId as string,
-      updateUserDto,
-    );
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
+    return this.authService.updateUser(req.user.userId, updateUserDto);
   }
 }
