@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
+import { getRequiredEnv } from './config/env.validation';
 
 @Controller()
 export class AppController {
@@ -16,7 +17,7 @@ export class AppController {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      environment: process.env.NODE_ENV,
+      environment: getRequiredEnv('NODE_ENV'),
     };
   }
 }

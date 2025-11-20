@@ -20,6 +20,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { MailService } from '../mail/mail.service';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { getRequiredEnv } from '../config/env.validation';
 
 @Injectable()
 export class AuthService {
@@ -34,7 +35,7 @@ export class AuthService {
     private mailService: MailService,
   ) {
     this.bcryptSaltRounds = parseInt(
-      this.configService.get<string>('BCRYPT_SALT_ROUNDS', '12'),
+      this.configService.getOrThrow<string>('BCRYPT_SALT_ROUNDS'),
       10,
     );
   }
@@ -95,7 +96,8 @@ export class AuthService {
   }
 
   async register(registerDto: RegisterDto) {
-    const { email, password, firstName, lastName, phone, role, isActive } = registerDto;
+    const { email, password, firstName, lastName, phone, role, isActive } =
+      registerDto;
 
     const existingUser = await this.userRepository.findOne({
       where: { email },
@@ -120,19 +122,19 @@ export class AuthService {
     await this.userRepository.save(user);
 
     // Generate and send verification email
-      let emailSent = false;
-      try {
-        await this.generateAndSendVerificationEmail(user);
-        emailSent = true;
-      } catch (err) {
-        // Already logged; proceed without blocking registration
-        emailSent = false;
-      }
+    let emailSent = false;
+    try {
+      await this.generateAndSendVerificationEmail(user);
+      emailSent = true;
+    } catch (err) {
+      // Already logged; proceed without blocking registration
+      emailSent = false;
+    }
 
-      return {
-        message: emailSent
-          ? 'User registered successfully. Please check your email to verify your account.'
-          : 'User registered successfully. We attempted to send a verification email but failed. Please check your email settings or contact support.',
+    return {
+      message: emailSent
+        ? 'User registered successfully. Please check your email to verify your account.'
+        : 'User registered successfully. We attempted to send a verification email but failed. Please check your email settings or contact support.',
       user: {
         id: user.id,
         email: user.email,
@@ -157,15 +159,15 @@ export class AuthService {
     await this.userRepository.save(user);
 
     // Build verification URL
-    const frontendBase = this.configService.get<string>('FRONTEND_URL');
-    if (!frontendBase) {
-      throw new Error('FRONTEND_URL environment variable is not configured');
-    }
+    const frontendBase =
+      this.configService.getOrThrow<string>('ADMIN_FRONTEND_URL');
     const verificationUrl = `${frontendBase.replace(/\/$/, '')}/verify-email?token=${token}`;
 
     // Log the verification URL in development for easier debugging
     if (process.env.NODE_ENV !== 'production') {
-      this.logger.debug(`Verification URL for ${user.email}: ${verificationUrl}`);
+      this.logger.debug(
+        `Verification URL for ${user.email}: ${verificationUrl}`,
+      );
     }
 
     try {
@@ -176,7 +178,7 @@ export class AuthService {
       );
     } catch (err) {
       // Log error but don't block registration
-      this.logger.error('Failed to send verification email', err as any);
+      this.logger.error('Failed to send verification email', err);
     }
   }
 
@@ -227,12 +229,12 @@ export class AuthService {
     await this.userRepository.save(user);
 
     // Build reset URL (frontend handles token in query param)
-    const frontendBase = this.configService.get<string>('FRONTEND_URL');
-    if (!frontendBase) {
-      throw new Error('FRONTEND_URL environment variable is not configured');
-    }
+    const frontendBase =
+      this.configService.getOrThrow<string>('ADMIN_FRONTEND_URL');
     // If a specific path is provided in env, use it otherwise default to /reset-password
-    const resetPath = this.configService.get<string>('PASSWORD_RESET_PATH') || '/reset-password';
+    const resetPath =
+      this.configService.get<string>('PASSWORD_RESET_PATH') ||
+      '/reset-password';
     const resetUrl = `${frontendBase.replace(/\/$/, '')}${resetPath}?token=${token}&email=${encodeURIComponent(user.email)}`;
 
     try {
@@ -289,21 +291,16 @@ export class AuthService {
   }
 
   async createSuperAdmin() {
-    const superAdminEmail = this.configService.get<string>(
-      'SUPER_ADMIN_EMAIL',
-      'admin@example.com',
-    );
-    const superAdminPassword = this.configService.get<string>(
+    const superAdminEmail =
+      this.configService.getOrThrow<string>('SUPER_ADMIN_EMAIL');
+    const superAdminPassword = this.configService.getOrThrow<string>(
       'SUPER_ADMIN_PASSWORD',
-      'ChangeMe123!',
     );
-    const superAdminFirstName = this.configService.get<string>(
+    const superAdminFirstName = this.configService.getOrThrow<string>(
       'SUPER_ADMIN_FIRST_NAME',
-      'Super',
     );
-    const superAdminLastName = this.configService.get<string>(
+    const superAdminLastName = this.configService.getOrThrow<string>(
       'SUPER_ADMIN_LAST_NAME',
-      'Admin',
     );
 
     const existingUser = await this.userRepository.findOne({
@@ -326,7 +323,9 @@ export class AuthService {
       });
 
       await this.userRepository.save(superAdmin);
-      this.logger.log(`Super admin created successfully with email: ${superAdminEmail}`);
+      this.logger.log(
+        `Super admin created successfully with email: ${superAdminEmail}`,
+      );
     }
   }
 
@@ -427,7 +426,7 @@ export class AuthService {
   async verifyEmail(token: string) {
     // Hash the token to compare with stored hash
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-    if (process.env.NODE_ENV !== 'production') {
+    if (getRequiredEnv('NODE_ENV') !== 'production') {
       this.logger.debug(`verifyEmail called with token hash ${hashedToken}`);
     }
 
@@ -436,16 +435,21 @@ export class AuthService {
     });
 
     if (!user) {
-      if (process.env.NODE_ENV !== 'production') {
-        this.logger.warn(`verifyEmail: No user found for token hash ${hashedToken}`);
+      if (getRequiredEnv('NODE_ENV') !== 'production') {
+        this.logger.warn(
+          `verifyEmail: No user found for token hash ${hashedToken}`,
+        );
       }
       throw new BadRequestException(
         'Invalid or expired verification token. Please request a new verification email.',
       );
     }
 
-    if (!user.emailVerificationTokenExpiry || user.emailVerificationTokenExpiry < new Date()) {
-      if (process.env.NODE_ENV !== 'production') {
+    if (
+      !user.emailVerificationTokenExpiry ||
+      user.emailVerificationTokenExpiry < new Date()
+    ) {
+      if (getRequiredEnv('NODE_ENV') !== 'production') {
         this.logger.warn(
           `verifyEmail: Token expired for user ${user.email} - expiry: ${user.emailVerificationTokenExpiry}`,
         );
@@ -469,7 +473,7 @@ export class AuthService {
       );
     } catch (err) {
       // Log but don't block
-      this.logger.error('Failed to send verification success email:', err as any);
+      this.logger.error('Failed to send verification success email:', err);
     }
 
     return {

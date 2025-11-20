@@ -32,28 +32,13 @@ import { StoryCategory } from './entities/story-category.entity';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        // Validate database configuration
-        const requiredDbVars = [
-          'DB_HOST',
-          'DB_PORT',
-          'DB_USERNAME',
-          'DB_PASSWORD',
-          'DB_NAME',
-        ];
-        const missing = requiredDbVars.filter((v) => !configService.get(v));
-        if (missing.length > 0) {
-          throw new Error(
-            `Missing required database config: ${missing.join(', ')}`,
-          );
-        }
-
         return {
           type: 'postgres',
-          host: configService.get<string>('DB_HOST'),
-          port: configService.get<number>('DB_PORT'),
-          username: configService.get<string>('DB_USERNAME'),
-          password: configService.get<string>('DB_PASSWORD'),
-          database: configService.get<string>('DB_NAME'),
+          host: configService.getOrThrow<string>('DB_HOST'),
+          port: configService.getOrThrow<number>('DB_PORT'),
+          username: configService.getOrThrow<string>('DB_USERNAME'),
+          password: configService.getOrThrow<string>('DB_PASSWORD'),
+          database: configService.getOrThrow<string>('DB_NAME'),
           entities: [
             User,
             MenuItem,
@@ -66,8 +51,10 @@ import { StoryCategory } from './entities/story-category.entity';
             Story,
             StoryCategory,
           ],
-          synchronize: configService.get<string>('NODE_ENV') !== 'production',
-          logging: configService.get<string>('NODE_ENV') === 'development',
+          synchronize:
+            configService.getOrThrow<string>('NODE_ENV') !== 'production',
+          logging:
+            configService.getOrThrow<string>('NODE_ENV') === 'development',
           timezone: 'UTC',
         };
       },

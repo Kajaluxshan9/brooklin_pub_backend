@@ -33,8 +33,8 @@ export class MailService {
         await this.transporter.verify();
         this.logger.log('SMTP transporter verified');
       } catch (err) {
-        this.logger.warn('SMTP transporter could not be verified', err as any);
-        if (process.env.NODE_ENV !== 'production') {
+        this.logger.warn('SMTP transporter could not be verified', err);
+        if (getRequiredEnv('NODE_ENV') !== 'production') {
           this.logger.log(
             'Falling back to Ethereal test account for development',
           );
@@ -52,7 +52,7 @@ export class MailService {
         } else {
           this.logger.error(
             'SMTP transporter verification failed in production',
-            err as any,
+            err,
           );
         }
       }
@@ -135,7 +135,7 @@ export class MailService {
       `,
     } as any;
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (getRequiredEnv('NODE_ENV') !== 'production') {
       this.logger.debug(
         `Sending verification email to ${to} with url: ${verificationUrl}`,
       );
@@ -149,14 +149,14 @@ export class MailService {
       if (preview) this.logger.log(`Preview URL: ${preview}`);
       return info;
     } catch (err) {
-      this.logger.error('Failed to send verification email', err as any);
+      this.logger.error('Failed to send verification email', err);
       throw err;
     }
   }
 
   async sendVerificationSuccessEmail(to: string, name: string) {
     const displayName = name || 'Admin';
-    const loginUrl = `${getRequiredEnv('FRONTEND_URL')}/login`;
+    const loginUrl = `${getRequiredEnv('ADMIN_FRONTEND_URL')}/login`;
     const mailOptions = {
       from: this.emailFrom,
       to,

@@ -35,7 +35,7 @@ interface EnvConfig {
   EMAIL_FROM: string;
 
   // Frontend
-  FRONTEND_URL: string;
+  ADMIN_FRONTEND_URL: string;
   PASSWORD_RESET_PATH?: string;
 
   // AWS S3
@@ -43,6 +43,15 @@ interface EnvConfig {
   AWS_SECRET_ACCESS_KEY: string;
   AWS_REGION: string;
   AWS_S3_BUCKET_NAME: string;
+
+  // Super Admin
+  SUPER_ADMIN_EMAIL: string;
+  SUPER_ADMIN_PASSWORD: string;
+  SUPER_ADMIN_FIRST_NAME: string;
+  SUPER_ADMIN_LAST_NAME: string;
+
+  // Server Host
+  HOST: string;
 }
 
 const REQUIRED_ENV_VARS: (keyof EnvConfig)[] = [
@@ -63,11 +72,16 @@ const REQUIRED_ENV_VARS: (keyof EnvConfig)[] = [
   'EMAIL_USER',
   'EMAIL_PASS',
   'EMAIL_FROM',
-  'FRONTEND_URL',
+  'ADMIN_FRONTEND_URL',
   'AWS_ACCESS_KEY_ID',
   'AWS_SECRET_ACCESS_KEY',
   'AWS_REGION',
   'AWS_S3_BUCKET_NAME',
+  'SUPER_ADMIN_EMAIL',
+  'SUPER_ADMIN_PASSWORD',
+  'SUPER_ADMIN_FIRST_NAME',
+  'SUPER_ADMIN_LAST_NAME',
+  'HOST',
 ];
 
 const OPTIONAL_ENV_VARS: (keyof EnvConfig)[] = ['PASSWORD_RESET_PATH'];
@@ -142,7 +156,7 @@ ${OPTIONAL_ENV_VARS.map((v) => `  📝 ${v}`).join('\n')}
   Logger.log('✅ Environment variables validated successfully');
   Logger.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
   Logger.log(`   Database: ${process.env.DB_HOST}:${process.env.DB_PORT}`);
-  Logger.log(`   Frontend: ${process.env.FRONTEND_URL}`);
+  Logger.log(`   Frontend: ${process.env.ADMIN_FRONTEND_URL}`);
   Logger.log('');
 }
 

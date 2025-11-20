@@ -16,7 +16,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, {
     logger:
-      process.env.NODE_ENV === 'production'
+      getRequiredEnv('NODE_ENV') === 'production'
         ? ['error', 'warn', 'log']
         : ['error', 'warn', 'log', 'debug', 'verbose'],
   });
@@ -53,7 +53,7 @@ async function bootstrap() {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-XSS-Protection', '1; mode=block');
-    if (process.env.NODE_ENV === 'production') {
+    if (getRequiredEnv('NODE_ENV') === 'production') {
       res.setHeader(
         'Strict-Transport-Security',
         'max-age=31536000; includeSubDomains',
@@ -67,7 +67,7 @@ async function bootstrap() {
   await authService.createSuperAdmin();
 
   const port = parseInt(getRequiredEnv('PORT'), 10);
-  const host = process.env.HOST || '0.0.0.0';
+  const host = getRequiredEnv('HOST');
   await app.listen(port, host);
   Logger.log(`🚀 Application is running on port: ${port}`);
   Logger.log(`🌍 Environment: ${getRequiredEnv('NODE_ENV')}`);

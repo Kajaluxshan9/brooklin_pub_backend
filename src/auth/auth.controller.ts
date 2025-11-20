@@ -36,7 +36,7 @@ export class AuthController {
 
     // Set the JWT token as an httpOnly cookie
     const cookieMaxAge = parseInt(getRequiredEnv('COOKIE_MAX_AGE'), 10);
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = getRequiredEnv('NODE_ENV') === 'production';
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
       secure: isProduction,
