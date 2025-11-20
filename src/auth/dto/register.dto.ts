@@ -4,6 +4,7 @@ import {
   MinLength,
   IsOptional,
   IsIn,
+  IsBoolean,
 } from 'class-validator';
 
 export class RegisterDto {
@@ -22,6 +23,14 @@ export class RegisterDto {
 
   @IsOptional()
   @IsString()
+  phone?: string;
+
+  @IsOptional()
+  @IsString()
   @IsIn(['admin', 'super_admin'])
   role?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

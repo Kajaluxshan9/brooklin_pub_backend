@@ -35,7 +35,7 @@ export class UsersController {
   }
 
   @UseGuards(SuperAdminGuard)
-  @Patch(':id/status')
+  @Patch(':id/toggle-status')
   toggleUserStatus(@Param('id') id: string) {
     return this.authService.toggleUserStatus(id);
   }

@@ -7,6 +7,7 @@ import {
   Get,
   Res,
   Patch,
+  Param,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
@@ -14,9 +15,13 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { SuperAdminGuard } from './guards/super-admin.guard';
+import { getRequiredEnv } from '../config/env.validation';
 
 @Controller('auth')
 export class AuthController {
@@ -29,12 +34,13 @@ export class AuthController {
   ) {
     const result = await this.authService.login(loginDto);
 
-    // Set the JWT token as an httpOnly cookie (1 hour validity)
-    const cookieMaxAge = parseInt(process.env.COOKIE_MAX_AGE || '3600000', 10); // 1 hour in milliseconds
+    // Set the JWT token as an httpOnly cookie
+    const cookieMaxAge = parseInt(getRequiredEnv('COOKIE_MAX_AGE'), 10);
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
       maxAge: cookieMaxAge,
     });
 
@@ -82,6 +88,11 @@ export class AuthController {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
+  @Post('reset-password')
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
+  }
+
   @Get('profile')
   @UseGuards(JwtAuthGuard)
   getProfile(@Request() req: any) {
@@ -97,5 +108,25 @@ export class AuthController {
   ) {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument
     return this.authService.updateUser(req.user.userId, updateUserDto);
+  }
+
+  @Post('verify-email')
+  async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto) {
+    return this.authService.verifyEmail(verifyEmailDto.token);
+  }
+
+  @Post('resend-verification')
+  async resendVerification(
+    @Body() resendVerificationDto: ResendVerificationDto,
+  ) {
+    return this.authService.resendVerificationEmailByEmail(
+      resendVerificationDto.email,
+    );
+  }
+
+  @Post('resend-verification/:userId')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async resendVerificationForUser(@Param('userId') userId: string) {
+    return this.authService.resendVerificationEmail(userId);
   }
 }

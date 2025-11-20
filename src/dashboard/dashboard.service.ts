@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { MoreThan, Repository } from 'typeorm';
+import { MoreThan, Repository, Not } from 'typeorm';
 import moment from 'moment-timezone';
 import { MenuItem } from '../entities/menu-item.entity';
 import { Special } from '../entities/special.entity';
@@ -30,7 +30,14 @@ export class DashboardService {
     private readonly openingHoursRepository: Repository<OpeningHours>,
   ) {}
 
-  async getSummary() {
+  async getSummary(user: any) {
+    const userFilter =
+      user.role !== 'super_admin' ? { role: Not('super_admin') } : {};
+    const userActiveFilter =
+      user.role !== 'super_admin'
+        ? { role: Not('super_admin'), isActive: true }
+        : { isActive: true };
+
     const [
       menuItemsTotal,
       menuItemsActive,
@@ -57,8 +64,8 @@ export class DashboardService {
         order: { sortOrder: 'ASC' },
         relations: ['menuItems'],
       }),
-      this.userRepository.count(),
-      this.userRepository.count({ where: { isActive: true } }),
+      this.userRepository.count({ where: userFilter }),
+      this.userRepository.count({ where: userActiveFilter }),
       this.eventRepository.count(),
       this.specialRepository.count(),
       this.todoRepository.count(),
@@ -92,6 +99,7 @@ export class DashboardService {
         take: 5,
       }),
       this.userRepository.find({
+        where: userFilter,
         select: [
           'id',
           'email',

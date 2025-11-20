@@ -31,6 +31,33 @@
 $ npm install
 ```
 
+### Password reset / email configuration
+
+To enable the forgot-password flow (reset emails), set these environment variables in your `.env` or in your environment:
+
+```
+EMAIL_HOST=smtp.example.com
+EMAIL_PORT=587
+EMAIL_USER=mailer@example.com
+EMAIL_PASS=supersecret
+EMAIL_FROM="Brooklin Pub" <no-reply@brooklinpub.com>
+FRONTEND_URL=http://localhost:3000
+PASSWORD_RESET_PATH=/auth/reset-password
+```
+
+If environment variables are not set, the mailer will run in a noop mode and reset tokens will be generated but no emails will be sent.
+
+### API: Forgot & Reset Password
+
+- POST `/auth/forgot-password` — Body: `{ "email": "admin@example.com" }`.
+  - If a user exists with that email, a reset link is emailed with a short-lived token (1 hour).
+  - Response always returns a generic success message to avoid leaking whether the user exists.
+
+- POST `/auth/reset-password` — Body: `{ "token": "<token-from-email>", "newPassword": "<newPass>", "confirmPassword": "<newPass>" }`.
+  - Validates the token and updates the account password; clears the token and expiry.
+  - Returns success or a suitable error if token invalid/expired.
+
+
 ## Compile and run the project
 
 ```bash

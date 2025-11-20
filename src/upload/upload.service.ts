@@ -1,24 +1,26 @@
 import { Injectable } from '@nestjs/common';
 import * as AWS from 'aws-sdk';
 import { v4 as uuidv4 } from 'uuid';
+import { getRequiredEnv } from '../config/env.validation';
 
 @Injectable()
 export class UploadService {
   private s3: AWS.S3;
+  private readonly bucketName: string;
 
   constructor() {
-    // Configure AWS S3
+    // Configure AWS S3 with validated environment variables
+    this.bucketName = getRequiredEnv('AWS_S3_BUCKET_NAME');
     this.s3 = new AWS.S3({
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      region: process.env.AWS_REGION || 'us-east-1',
+      accessKeyId: getRequiredEnv('AWS_ACCESS_KEY_ID'),
+      secretAccessKey: getRequiredEnv('AWS_SECRET_ACCESS_KEY'),
+      region: getRequiredEnv('AWS_REGION'),
     });
   }
 
   async uploadFile(
     file: Express.Multer.File,
-    bucketName: string = process.env.AWS_S3_BUCKET_NAME ||
-      'brooklin-pub-images',
+    bucketName: string = this.bucketName,
   ): Promise<string> {
     const fileName = `menu-items/${uuidv4()}-${file.originalname}`;
 
@@ -42,8 +44,7 @@ export class UploadService {
 
   async uploadMultipleFiles(
     files: Express.Multer.File[],
-    bucketName: string = process.env.AWS_S3_BUCKET_NAME ||
-      'brooklin-pub-images',
+    bucketName: string = this.bucketName,
   ): Promise<string[]> {
     const uploadPromises = files.map((file) =>
       this.uploadFile(file, bucketName),
@@ -53,8 +54,7 @@ export class UploadService {
 
   async deleteFile(
     fileUrl: string,
-    bucketName: string = process.env.AWS_S3_BUCKET_NAME ||
-      'brooklin-pub-images',
+    bucketName: string = this.bucketName,
   ): Promise<void> {
     // Extract the key from the full URL in a robust way
     let key: string;
@@ -89,8 +89,7 @@ export class UploadService {
 
   async deleteMultipleFiles(
     fileUrls: string[],
-    bucketName: string = process.env.AWS_S3_BUCKET_NAME ||
-      'brooklin-pub-images',
+    bucketName: string = this.bucketName,
   ): Promise<void> {
     const deletePromises = fileUrls.map((url) =>
       this.deleteFile(url, bucketName),
