@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as AWS from 'aws-sdk';
 import { v4 as uuidv4 } from 'uuid';
 import { getRequiredEnv } from '../config/env.validation';
@@ -82,7 +82,7 @@ export class UploadService {
     try {
       await this.s3.deleteObject(deleteParams).promise();
     } catch (error) {
-      console.error(`Failed to delete file from S3: ${error.message}`);
+      Logger.error(`Failed to delete file from S3: ${error.message}`);
       // Don't throw error for delete operations to avoid blocking the main operation
     }
   }

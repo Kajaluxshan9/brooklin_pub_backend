@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { TodosService } from './todos.service';
 import { CreateTodoDto } from './dto/create-todo.dto';
@@ -18,6 +19,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @Controller('todos')
 @UseGuards(JwtAuthGuard)
 export class TodosController {
+  private readonly logger = new Logger(TodosController.name);
   constructor(private readonly todosService: TodosService) {}
 
   @Get()
@@ -45,14 +47,14 @@ export class TodosController {
   create(@Body() createTodoDto: CreateTodoDto, @Request() req: any) {
     try {
       // Log incoming payload and user for debugging
-      console.debug('Create todo request body:', createTodoDto);
+      this.logger.debug('Create todo request body:', createTodoDto as any);
       const userId = (req as any)?.user?.id ?? null;
-      console.debug('Create todo requested by user:', userId);
+      this.logger.debug('Create todo requested by user:', userId as any);
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       return this.todosService.create(createTodoDto, userId);
     } catch (err) {
-      console.error('Error in TodosController.create:', err);
+      this.logger.error('Error in TodosController.create:', err as any);
       // Surface inner message for easier debugging in dev
       const msg = err instanceof Error ? err.message : 'Internal server error';
       throw new InternalServerErrorException(msg);

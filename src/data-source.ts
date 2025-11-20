@@ -1,4 +1,5 @@
 import { DataSource } from 'typeorm';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { config } from 'dotenv';
 import { User } from './entities/user.entity';
@@ -56,15 +57,15 @@ export const AppDataSource = new DataSource({
 if (require.main === module) {
   AppDataSource.initialize()
     .then(() => {
-      console.log('📡 Data source initialized');
+      Logger.log('📡 Data source initialized');
       return AppDataSource.synchronize();
     })
     .then(() => {
-      console.log('✅ Schema synchronized successfully');
+      Logger.log('✅ Schema synchronized successfully');
       process.exit(0);
     })
     .catch((error) => {
-      console.error('❌ Error synchronizing schema:', error);
+      Logger.error('❌ Error synchronizing schema:', error as any);
       process.exit(1);
     });
 }

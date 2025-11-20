@@ -7,6 +7,7 @@
   Param,
   Delete,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
 import { MenuService } from './menu.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -22,6 +23,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('menu')
 export class MenuController {
+  private readonly logger = new Logger(MenuController.name);
   constructor(private readonly menuService: MenuService) {}
 
   // Primary Category endpoints
@@ -141,10 +143,7 @@ export class MenuController {
   ) {
     // Add lightweight logging to help debug 500 errors from the frontend
     try {
-      console.log(
-        `PATCH /menu/items/${id} payload:`,
-        JSON.stringify(updateMenuItemDto),
-      );
+      this.logger.debug(`PATCH /menu/items/${id} payload:`, JSON.stringify(updateMenuItemDto));
     } catch (_) {
       // ignore stringify errors
     }
@@ -156,9 +155,9 @@ export class MenuController {
       );
       return result;
     } catch (error) {
-      console.error(
+      this.logger.error(
         `Error updating menu item ${id}:`,
-        error && (error.stack || error),
+        (error && (error.stack || error)) as any,
       );
       throw error;
     }

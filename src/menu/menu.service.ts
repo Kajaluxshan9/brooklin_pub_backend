@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MenuCategory } from '../entities/menu-category.entity';
@@ -14,6 +14,7 @@ import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class MenuService {
+  private readonly logger = new Logger(MenuService.name);
   constructor(
     @InjectRepository(MenuCategory)
     private categoryRepository: Repository<MenuCategory>,
@@ -266,7 +267,7 @@ export class MenuService {
       try {
         await this.uploadService.deleteMultipleFiles(menuItem.imageUrls);
       } catch (error) {
-        console.error('Failed to delete images from S3:', error);
+        this.logger.error('Failed to delete images from S3:', error as any);
         // Continue with menu item deletion even if S3 deletion fails
       }
     }

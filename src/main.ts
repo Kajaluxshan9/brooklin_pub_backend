@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { AuthService } from './auth/auth.service';
 import cookieParser from 'cookie-parser';
@@ -10,7 +10,7 @@ async function bootstrap() {
   try {
     validateEnvironment();
   } catch (error) {
-    console.error(error.message);
+    Logger.error(error.message);
     process.exit(1);
   }
 
@@ -69,9 +69,9 @@ async function bootstrap() {
   const port = parseInt(getRequiredEnv('PORT'), 10);
   const host = process.env.HOST || '0.0.0.0';
   await app.listen(port, host);
-  console.log(`🚀 Application is running on port: ${port}`);
-  console.log(`🌍 Environment: ${getRequiredEnv('NODE_ENV')}`);
-  console.log(
+  Logger.log(`🚀 Application is running on port: ${port}`);
+  Logger.log(`🌍 Environment: ${getRequiredEnv('NODE_ENV')}`);
+  Logger.log(
     `💾 Database: ${getRequiredEnv('DB_HOST')}:${getRequiredEnv('DB_PORT')}`,
   );
 }

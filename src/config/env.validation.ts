@@ -4,6 +4,8 @@
  * and throws descriptive errors if any are missing.
  */
 
+import { Logger } from '@nestjs/common';
+
 interface EnvConfig {
   // Server
   NODE_ENV: string;
@@ -109,9 +111,9 @@ export function validateEnvironment(): void {
 
   // Print warnings
   if (warnings.length > 0) {
-    console.warn('\n⚠️  Environment Configuration Warnings:');
-    warnings.forEach((warning) => console.warn(`   ${warning}`));
-    console.warn('');
+    Logger.warn('\n⚠️  Environment Configuration Warnings:');
+    warnings.forEach((warning) => Logger.warn(`   ${warning}`));
+    Logger.warn('');
   }
 
   // Throw error if required variables are missing
@@ -137,11 +139,11 @@ ${OPTIONAL_ENV_VARS.map((v) => `  📝 ${v}`).join('\n')}
   }
 
   // Success message
-  console.log('✅ Environment variables validated successfully');
-  console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`   Database: ${process.env.DB_HOST}:${process.env.DB_PORT}`);
-  console.log(`   Frontend: ${process.env.FRONTEND_URL}`);
-  console.log('');
+  Logger.log('✅ Environment variables validated successfully');
+  Logger.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+  Logger.log(`   Database: ${process.env.DB_HOST}:${process.env.DB_PORT}`);
+  Logger.log(`   Frontend: ${process.env.FRONTEND_URL}`);
+  Logger.log('');
 }
 
 /**

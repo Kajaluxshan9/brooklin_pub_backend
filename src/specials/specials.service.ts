@@ -1,4 +1,4 @@
-﻿import { Injectable, NotFoundException } from '@nestjs/common';
+﻿import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Special } from '../entities/special.entity';
@@ -8,6 +8,7 @@ import { UploadService } from '../upload/upload.service';
 
 @Injectable()
 export class SpecialsService {
+  private readonly logger = new Logger(SpecialsService.name);
   constructor(
     @InjectRepository(Special)
     private specialRepository: Repository<Special>,
@@ -59,7 +60,7 @@ export class SpecialsService {
         try {
           await this.uploadService.deleteFile(imageUrl);
         } catch (error) {
-          console.error(`Failed to delete image ${imageUrl}:`, error);
+          this.logger.error(`Failed to delete image ${imageUrl}:`, error as any);
         }
       }
     }

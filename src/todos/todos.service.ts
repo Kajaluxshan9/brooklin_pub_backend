@@ -3,6 +3,7 @@ import {
   NotFoundException,
   InternalServerErrorException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -13,6 +14,7 @@ import { UpdateTodoDto } from './dto/update-todo.dto';
 
 @Injectable()
 export class TodosService {
+  private readonly logger = new Logger(TodosService.name);
   constructor(
     @InjectRepository(Todo)
     private todoRepository: Repository<Todo>,
@@ -67,17 +69,17 @@ export class TodosService {
       }
     } catch (err) {
       // Non-fatal: proceed without relation if user lookup fails
-      console.warn('User lookup failed when creating todo:', err);
+      this.logger.warn('User lookup failed when creating todo:', err);
       todo.createdById = userId;
     }
 
     try {
       // Log the todo object we are about to save for debugging
-      console.debug('Saving todo to DB:', todo);
+      this.logger.debug('Saving todo to DB:', todo as any);
       return await this.todoRepository.save(todo);
     } catch (err) {
       // Log the underlying error and throw a clearer exception
-      console.error('Error saving todo:', err);
+      this.logger.error('Error saving todo:', err as any);
       throw new InternalServerErrorException('Failed to save todo');
     }
   }

@@ -250,11 +250,7 @@ export class AuthService {
   }
 
   async resetPassword(resetPasswordDto: ResetPasswordDto) {
-    const { token, newPassword, confirmPassword } = resetPasswordDto;
-
-    if (newPassword !== confirmPassword) {
-      throw new BadRequestException('Passwords do not match');
-    }
+    const { token, newPassword } = resetPasswordDto;
 
     // Find user by hashed token and ensure it's not expired
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
@@ -330,9 +326,7 @@ export class AuthService {
       });
 
       await this.userRepository.save(superAdmin);
-      console.log(
-        `Super admin created successfully with email: ${superAdminEmail}`,
-      );
+      this.logger.log(`Super admin created successfully with email: ${superAdminEmail}`);
     }
   }
 
@@ -475,7 +469,7 @@ export class AuthService {
       );
     } catch (err) {
       // Log but don't block
-      console.error('Failed to send verification success email:', err);
+      this.logger.error('Failed to send verification success email:', err as any);
     }
 
     return {
