@@ -39,9 +39,10 @@ export class AuthController {
     const isProduction = getRequiredEnv('NODE_ENV') === 'production';
     res.cookie('access_token', result.access_token, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
+      secure: false, // Set to true only when using HTTPS with proper domain
+      sameSite: 'lax', // Use 'lax' for cross-origin compatibility
       maxAge: cookieMaxAge,
+      path: '/',
     });
 
     // Return user data without the token
@@ -53,7 +54,12 @@ export class AuthController {
 
   @Post('logout')
   logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('access_token');
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      path: '/',
+    });
     return { message: 'Logged out successfully' };
   }
 
