@@ -6,7 +6,10 @@
   IsNumber,
   IsArray,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { CreateMenuItemMeasurementDto } from './create-menu-item-measurement.dto';
 
 export class CreateMenuItemDto {
   @IsString()
@@ -19,7 +22,8 @@ export class CreateMenuItemDto {
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  price: number;
+  @IsOptional()
+  price?: number; // Optional now, can use measurements instead
 
   @IsString()
   @IsNotEmpty()
@@ -48,4 +52,14 @@ export class CreateMenuItemDto {
   @IsNumber()
   @IsOptional()
   sortOrder?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  hasMeasurements?: boolean; // If true, use measurements; if false, use price
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateMenuItemMeasurementDto)
+  @IsOptional()
+  measurements?: CreateMenuItemMeasurementDto[];
 }

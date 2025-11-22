@@ -19,7 +19,10 @@ export class UploadController {
 
   @Post('images')
   @UseInterceptors(FilesInterceptor('images', 5)) // Max 5 files
-  async uploadImages(@UploadedFiles() files: Express.Multer.File[]) {
+  async uploadImages(
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body('folder') folder?: string,
+  ) {
     if (!files || files.length === 0) {
       throw new BadRequestException('No files uploaded');
     }
@@ -50,7 +53,10 @@ export class UploadController {
     }
 
     try {
-      const uploadedUrls = await this.uploadService.uploadMultipleFiles(files);
+      const uploadedUrls = await this.uploadService.uploadMultipleFiles(
+        files,
+        folder || 'general',
+      );
       return {
         success: true,
         message: 'Images uploaded successfully',

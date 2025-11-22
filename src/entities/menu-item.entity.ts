@@ -5,9 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { MenuCategory } from './menu-category.entity';
+import { MenuItemMeasurement } from './menu-item-measurement.entity';
 
 @Entity('menu_items')
 export class MenuItem {
@@ -55,6 +57,9 @@ export class MenuItem {
   @Column({ nullable: true })
   categoryId: string;
 
+  @Column({ default: false })
+  hasMeasurements: boolean; // If true, use measurements table; if false, use price field
+
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
@@ -64,4 +69,10 @@ export class MenuItem {
   @ManyToOne(() => MenuCategory, (category) => category.menuItems)
   @JoinColumn({ name: 'categoryId' })
   category: MenuCategory;
+
+  @OneToMany(() => MenuItemMeasurement, (measurement) => measurement.menuItem, {
+    cascade: true,
+    eager: false,
+  })
+  measurements: MenuItemMeasurement[];
 }

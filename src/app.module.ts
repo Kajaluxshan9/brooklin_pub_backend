@@ -12,10 +12,13 @@ import { UsersModule } from './users/users.module';
 import { TodosModule } from './todos/todos.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { UploadModule } from './upload/upload.module';
+import { MeasurementModule } from './measurements/measurement.module';
 import { StoriesModule } from './stories/stories.module';
 import { User } from './entities/user.entity';
 import { MenuItem } from './entities/menu-item.entity';
 import { MenuCategory } from './entities/menu-category.entity';
+import { MenuItemMeasurement } from './entities/menu-item-measurement.entity';
+import { MeasurementType } from './entities/measurement-type.entity';
 import { PrimaryCategory } from './entities/primary-category.entity';
 import { Special } from './entities/special.entity';
 import { Event } from './entities/event.entity';
@@ -42,6 +45,8 @@ import { StoryCategory } from './entities/story-category.entity';
           entities: [
             User,
             MenuItem,
+            MenuItemMeasurement,
+            MeasurementType,
             MenuCategory,
             PrimaryCategory,
             Special,
@@ -69,6 +74,7 @@ import { StoryCategory } from './entities/story-category.entity';
     TodosModule,
     DashboardModule,
     UploadModule,
+    MeasurementModule,
     StoriesModule,
   ],
   controllers: [AppController],

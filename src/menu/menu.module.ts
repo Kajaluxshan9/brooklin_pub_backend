@@ -4,12 +4,20 @@ import { MenuService } from './menu.service';
 import { MenuController } from './menu.controller';
 import { MenuCategory } from '../entities/menu-category.entity';
 import { MenuItem } from '../entities/menu-item.entity';
+import { MenuItemMeasurement } from '../entities/menu-item-measurement.entity';
+import { MeasurementType } from '../entities/measurement-type.entity';
 import { PrimaryCategory } from '../entities/primary-category.entity';
 import { UploadModule } from '../upload/upload.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([MenuCategory, MenuItem, PrimaryCategory]),
+    TypeOrmModule.forFeature([
+      MenuCategory,
+      MenuItem,
+      MenuItemMeasurement,
+      MeasurementType,
+      PrimaryCategory,
+    ]),
     UploadModule,
   ],
   controllers: [MenuController],

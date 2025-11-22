@@ -5,6 +5,7 @@ import { config } from 'dotenv';
 import { User } from './entities/user.entity';
 import { MenuItem } from './entities/menu-item.entity';
 import { MenuCategory } from './entities/menu-category.entity';
+import { MenuItemMeasurement } from './entities/menu-item-measurement.entity';
 import { PrimaryCategory } from './entities/primary-category.entity';
 import { Special } from './entities/special.entity';
 import { Event } from './entities/event.entity';
@@ -48,9 +49,13 @@ export const AppDataSource = new DataSource({
     Event,
     OpeningHours,
     Todo,
+    MenuItemMeasurement,
+    'src/entities/**/*.entity.ts',
   ],
-  synchronize: false, // We'll use CLI to sync
+  migrations: ['src/migrations/**/*.ts'],
+  synchronize: false, // We'll use migrations instead
   logging: true,
+  migrationsRun: false,
 });
 
 // If this file is run directly, synchronize the schema

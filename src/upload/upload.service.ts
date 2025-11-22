@@ -20,9 +20,10 @@ export class UploadService {
 
   async uploadFile(
     file: Express.Multer.File,
+    folder: string = 'general',
     bucketName: string = this.bucketName,
   ): Promise<string> {
-    const fileName = `menu-items/${uuidv4()}-${file.originalname}`;
+    const fileName = `${folder}/${uuidv4()}-${file.originalname}`;
 
     const uploadParams = {
       Bucket: bucketName,
@@ -44,10 +45,11 @@ export class UploadService {
 
   async uploadMultipleFiles(
     files: Express.Multer.File[],
+    folder: string = 'general',
     bucketName: string = this.bucketName,
   ): Promise<string[]> {
     const uploadPromises = files.map((file) =>
-      this.uploadFile(file, bucketName),
+      this.uploadFile(file, folder, bucketName),
     );
     return Promise.all(uploadPromises);
   }

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { MenuCategory } from '../entities/menu-category.entity';
 import { MenuItem } from '../entities/menu-item.entity';
+import { MenuItemMeasurement } from '../entities/menu-item-measurement.entity';
 import { PrimaryCategory } from '../entities/primary-category.entity';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
@@ -20,6 +21,8 @@ export class MenuService {
     private categoryRepository: Repository<MenuCategory>,
     @InjectRepository(MenuItem)
     private menuItemRepository: Repository<MenuItem>,
+    @InjectRepository(MenuItemMeasurement)
+    private measurementRepository: Repository<MenuItemMeasurement>,
     @InjectRepository(PrimaryCategory)
     private primaryCategoryRepository: Repository<PrimaryCategory>,
     private uploadService: UploadService,
@@ -220,14 +223,14 @@ export class MenuService {
   async findAllMenuItems(): Promise<MenuItem[]> {
     return this.menuItemRepository.find({
       order: { sortOrder: 'ASC' },
-      relations: ['category'],
+      relations: ['category', 'measurements'],
     });
   }
 
   async findMenuItemById(id: string): Promise<MenuItem> {
     const menuItem = await this.menuItemRepository.findOne({
       where: { id },
-      relations: ['category'],
+      relations: ['category', 'measurements'],
     });
     if (!menuItem) {
       throw new NotFoundException(`Menu item with ID ${id} not found`);
@@ -239,22 +242,61 @@ export class MenuService {
     return this.menuItemRepository.find({
       where: { categoryId },
       order: { sortOrder: 'ASC' },
-      relations: ['category'],
+      relations: ['category', 'measurements'],
     });
   }
 
   async createMenuItem(
     createMenuItemDto: CreateMenuItemDto,
   ): Promise<MenuItem> {
-    const menuItem = this.menuItemRepository.create(createMenuItemDto);
-    return this.menuItemRepository.save(menuItem);
+    const { measurements, ...menuItemData } = createMenuItemDto;
+
+    // Create the menu item
+    const menuItem = this.menuItemRepository.create(menuItemData);
+    const savedMenuItem = await this.menuItemRepository.save(menuItem);
+
+    // Create measurements if provided
+    if (measurements && measurements.length > 0) {
+      const measurementEntities = measurements.map((m, index) => {
+        return this.measurementRepository.create({
+          ...m,
+          menuItemId: savedMenuItem.id,
+          sortOrder: m.sortOrder ?? index,
+        });
+      });
+      await this.measurementRepository.save(measurementEntities);
+    }
+
+    return this.findMenuItemById(savedMenuItem.id);
   }
 
   async updateMenuItem(
     id: string,
     updateMenuItemDto: UpdateMenuItemDto,
   ): Promise<MenuItem> {
-    await this.menuItemRepository.update(id, updateMenuItemDto);
+    const { measurements, ...menuItemData } = updateMenuItemDto;
+
+    // Update the menu item
+    await this.menuItemRepository.update(id, menuItemData);
+
+    // Handle measurements update if provided
+    if (measurements !== undefined) {
+      // Delete existing measurements
+      await this.measurementRepository.delete({ menuItemId: id });
+
+      // Create new measurements if provided
+      if (measurements.length > 0) {
+        const measurementEntities = measurements.map((m, index) => {
+          return this.measurementRepository.create({
+            ...m,
+            menuItemId: id,
+            sortOrder: m.sortOrder ?? index,
+          });
+        });
+        await this.measurementRepository.save(measurementEntities);
+      }
+    }
+
     return this.findMenuItemById(id);
   }
 
