@@ -309,7 +309,7 @@ export class MenuService {
       try {
         await this.uploadService.deleteMultipleFiles(menuItem.imageUrls);
       } catch (error) {
-        this.logger.error('Failed to delete images from S3:', error as any);
+        this.logger.error('Failed to delete images from S3:', error);
         // Continue with menu item deletion even if S3 deletion fails
       }
     }

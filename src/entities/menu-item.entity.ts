@@ -26,6 +26,7 @@ export class MenuItem {
   @Column('decimal', {
     precision: 8,
     scale: 2,
+    nullable: true,
     transformer: {
       to: (value: number) =>
         value === null || value === undefined ? null : value,
