@@ -8,6 +8,7 @@
   Delete,
   UseGuards,
   Logger,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { MenuService } from './menu.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -115,13 +116,26 @@ export class MenuController {
 
   // Menu Item endpoints
   @Get('items')
-  findAllMenuItems() {
-    return this.menuService.findAllMenuItems();
+  async findAllMenuItems() {
+    try {
+      return await this.menuService.findAllMenuItems();
+    } catch (error) {
+      this.logger.error('Error in GET /menu/items', error?.stack || error);
+      throw new InternalServerErrorException('Failed to fetch menu items');
+    }
   }
 
   @Get('items/:id')
-  findMenuItemById(@Param('id') id: string) {
-    return this.menuService.findMenuItemById(id);
+  async findMenuItemById(@Param('id') id: string) {
+    try {
+      return await this.menuService.findMenuItemById(id);
+    } catch (error) {
+      this.logger.error(
+        `Error in GET /menu/items/${id}`,
+        error?.stack || error,
+      );
+      throw new InternalServerErrorException('Failed to fetch menu item');
+    }
   }
 
   @Get('categories/:categoryId/items')
@@ -143,7 +157,10 @@ export class MenuController {
   ) {
     // Add lightweight logging to help debug 500 errors from the frontend
     try {
-      this.logger.debug(`PATCH /menu/items/${id} payload:`, JSON.stringify(updateMenuItemDto));
+      this.logger.debug(
+        `PATCH /menu/items/${id} payload:`,
+        JSON.stringify(updateMenuItemDto),
+      );
     } catch (_) {
       // ignore stringify errors
     }

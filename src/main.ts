@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AppModule } from './app.module';
 import { AuthService } from './auth/auth.service';
 import cookieParser from 'cookie-parser';
@@ -48,6 +49,9 @@ async function bootstrap() {
       },
     }),
   );
+
+  // Global exception filter to standardize error responses and log unique error IDs
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   // Security headers
   app.use((req, res, next) => {
