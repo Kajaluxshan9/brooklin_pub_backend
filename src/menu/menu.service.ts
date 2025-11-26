@@ -223,14 +223,22 @@ export class MenuService {
   async findAllMenuItems(): Promise<MenuItem[]> {
     return this.menuItemRepository.find({
       order: { sortOrder: 'ASC' },
-      relations: ['category', 'measurements'],
+      relations: [
+        'category',
+        'measurements',
+        'measurements.measurementTypeEntity',
+      ],
     });
   }
 
   async findMenuItemById(id: string): Promise<MenuItem> {
     const menuItem = await this.menuItemRepository.findOne({
       where: { id },
-      relations: ['category', 'measurements'],
+      relations: [
+        'category',
+        'measurements',
+        'measurements.measurementTypeEntity',
+      ],
     });
     if (!menuItem) {
       throw new NotFoundException(`Menu item with ID ${id} not found`);
