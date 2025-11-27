@@ -1,10 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AppModule } from './app.module';
 import { AuthService } from './auth/auth.service';
 import cookieParser from 'cookie-parser';
-import { validateEnvironment, getRequiredEnv } from './config/env.validation';
+import {
+  validateEnvironment,
+  getRequiredEnv,
+  getOptionalEnv,
+} from './config/env.validation';
+import * as path from 'path';
+import * as fs from 'fs';
 
 async function bootstrap() {
   // Validate environment variables before starting the application
@@ -15,12 +22,30 @@ async function bootstrap() {
     process.exit(1);
   }
 
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger:
       getRequiredEnv('NODE_ENV') === 'production'
         ? ['error', 'warn', 'log']
         : ['error', 'warn', 'log', 'debug', 'verbose'],
   });
+
+  // Configure static file serving for uploads
+  const uploadDir = getOptionalEnv('UPLOAD_DIR', 'uploads') || 'uploads';
+  const absoluteUploadDir = path.isAbsolute(uploadDir)
+    ? uploadDir
+    : path.join(process.cwd(), uploadDir);
+
+  // Ensure upload directory exists
+  if (!fs.existsSync(absoluteUploadDir)) {
+    fs.mkdirSync(absoluteUploadDir, { recursive: true });
+    Logger.log(`Created upload directory: ${absoluteUploadDir}`);
+  }
+
+  // Serve static files from uploads directory
+  app.useStaticAssets(absoluteUploadDir, {
+    prefix: '/uploads/',
+  });
+  Logger.log(`📁 Serving uploads from: ${absoluteUploadDir}`);
 
   // Enable cookie parser
   app.use(cookieParser());

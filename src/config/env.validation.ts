@@ -38,11 +38,9 @@ interface EnvConfig {
   ADMIN_FRONTEND_URL: string;
   PASSWORD_RESET_PATH?: string;
 
-  // AWS S3
-  AWS_ACCESS_KEY_ID: string;
-  AWS_SECRET_ACCESS_KEY: string;
-  AWS_REGION: string;
-  AWS_S3_BUCKET_NAME: string;
+  // Local File Storage (replaces AWS S3)
+  UPLOAD_DIR?: string;
+  UPLOAD_BASE_URL?: string;
 
   // Super Admin
   SUPER_ADMIN_EMAIL: string;
@@ -73,10 +71,6 @@ const REQUIRED_ENV_VARS: (keyof EnvConfig)[] = [
   'EMAIL_PASS',
   'EMAIL_FROM',
   'ADMIN_FRONTEND_URL',
-  'AWS_ACCESS_KEY_ID',
-  'AWS_SECRET_ACCESS_KEY',
-  'AWS_REGION',
-  'AWS_S3_BUCKET_NAME',
   'SUPER_ADMIN_EMAIL',
   'SUPER_ADMIN_PASSWORD',
   'SUPER_ADMIN_FIRST_NAME',
@@ -84,7 +78,11 @@ const REQUIRED_ENV_VARS: (keyof EnvConfig)[] = [
   'HOST',
 ];
 
-const OPTIONAL_ENV_VARS: (keyof EnvConfig)[] = ['PASSWORD_RESET_PATH'];
+const OPTIONAL_ENV_VARS: (keyof EnvConfig)[] = [
+  'PASSWORD_RESET_PATH',
+  'UPLOAD_DIR',
+  'UPLOAD_BASE_URL',
+];
 
 /**
  * Validates environment variables and throws an error if required ones are missing

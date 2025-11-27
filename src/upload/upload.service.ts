@@ -1,101 +1,128 @@
 import { Injectable, Logger } from '@nestjs/common';
-import * as AWS from 'aws-sdk';
 import { v4 as uuidv4 } from 'uuid';
-import { getRequiredEnv } from '../config/env.validation';
+import * as fs from 'fs';
+import * as path from 'path';
+import { getOptionalEnv } from '../config/env.validation';
 
 @Injectable()
 export class UploadService {
-  private s3: AWS.S3;
-  private readonly bucketName: string;
+  private readonly logger = new Logger(UploadService.name);
+  private readonly uploadDir: string;
+  private readonly baseUrl: string;
 
   constructor() {
-    // Configure AWS S3 with validated environment variables
-    this.bucketName = getRequiredEnv('AWS_S3_BUCKET_NAME');
-    this.s3 = new AWS.S3({
-      accessKeyId: getRequiredEnv('AWS_ACCESS_KEY_ID'),
-      secretAccessKey: getRequiredEnv('AWS_SECRET_ACCESS_KEY'),
-      region: getRequiredEnv('AWS_REGION'),
-    });
+    // Use environment variable or default to 'uploads' directory
+    this.uploadDir = getOptionalEnv('UPLOAD_DIR', 'uploads') || 'uploads';
+    // Base URL for accessing uploaded files (e.g., https://api.example.com)
+    this.baseUrl = getOptionalEnv('UPLOAD_BASE_URL', '') || '';
+
+    // Ensure upload directory exists
+    this.ensureUploadDir();
+  }
+
+  private ensureUploadDir(): void {
+    const absoluteDir = path.isAbsolute(this.uploadDir)
+      ? this.uploadDir
+      : path.join(process.cwd(), this.uploadDir);
+
+    if (!fs.existsSync(absoluteDir)) {
+      fs.mkdirSync(absoluteDir, { recursive: true });
+      this.logger.log(`Created upload directory: ${absoluteDir}`);
+    }
+  }
+
+  private ensureFolderExists(folder: string): string {
+    const absoluteDir = path.isAbsolute(this.uploadDir)
+      ? this.uploadDir
+      : path.join(process.cwd(), this.uploadDir);
+
+    const folderPath = path.join(absoluteDir, folder);
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
+    }
+    return folderPath;
   }
 
   async uploadFile(
     file: Express.Multer.File,
     folder: string = 'general',
-    bucketName: string = this.bucketName,
   ): Promise<string> {
-    const fileName = `${folder}/${uuidv4()}-${file.originalname}`;
+    // Ensure folder exists
+    const folderPath = this.ensureFolderExists(folder);
 
-    const uploadParams = {
-      Bucket: bucketName,
-      Key: fileName,
-      Body: file.buffer,
-      ContentType: file.mimetype,
-    };
+    // Generate unique filename
+    const ext = path.extname(file.originalname);
+    const sanitizedName = file.originalname
+      .replace(ext, '')
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      .substring(0, 50);
+    const uniqueFileName = `${uuidv4()}-${sanitizedName}${ext}`;
+    const filePath = path.join(folderPath, uniqueFileName);
 
     try {
-      const result = await this.s3.upload(uploadParams).promise();
-      return result.Location;
+      // Write file to disk
+      await fs.promises.writeFile(filePath, file.buffer);
+
+      // Return the URL path for accessing the file
+      const relativePath = `/uploads/${folder}/${uniqueFileName}`;
+      const fullUrl = this.baseUrl ? `${this.baseUrl}${relativePath}` : relativePath;
+
+      this.logger.log(`File uploaded successfully: ${relativePath}`);
+      return fullUrl;
     } catch (error) {
-      // Surface the original error message if available
-      const msg =
-        (error && (error.message || error.toString())) || 'Unknown error';
-      throw new Error(`Failed to upload file to S3: ${msg}`);
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to upload file: ${msg}`);
+      throw new Error(`Failed to upload file: ${msg}`);
     }
   }
 
   async uploadMultipleFiles(
     files: Express.Multer.File[],
     folder: string = 'general',
-    bucketName: string = this.bucketName,
   ): Promise<string[]> {
-    const uploadPromises = files.map((file) =>
-      this.uploadFile(file, folder, bucketName),
-    );
+    const uploadPromises = files.map((file) => this.uploadFile(file, folder));
     return Promise.all(uploadPromises);
   }
 
-  async deleteFile(
-    fileUrl: string,
-    bucketName: string = this.bucketName,
-  ): Promise<void> {
-    // Extract the key from the full URL in a robust way
-    let key: string;
+  async deleteFile(fileUrl: string): Promise<void> {
     try {
-      const parsed = new URL(fileUrl);
-      // pathname starts with '/': remove leading slash
-      key = parsed.pathname.startsWith('/')
-        ? parsed.pathname.slice(1)
-        : parsed.pathname;
-      // If the pathname contains the bucket name as the first segment (s3 path-style), remove it
-      if (key.startsWith(`${bucketName}/`)) {
-        key = key.slice(bucketName.length + 1);
+      // Extract path from URL
+      let relativePath: string;
+
+      if (fileUrl.startsWith('http')) {
+        // Full URL - extract path
+        const url = new URL(fileUrl);
+        relativePath = url.pathname;
+      } else {
+        // Already a relative path
+        relativePath = fileUrl;
       }
-    } catch (e) {
-      // Fallback: take last two segments (folder/filename) which matches our upload pattern
-      const urlParts = fileUrl.split('/');
-      key = urlParts.slice(-2).join('/');
-    }
 
-    const deleteParams = {
-      Bucket: bucketName,
-      Key: key,
-    };
+      // Remove leading /uploads/ to get folder/filename
+      const cleanPath = relativePath.replace(/^\/uploads\//, '');
 
-    try {
-      await this.s3.deleteObject(deleteParams).promise();
+      const absoluteDir = path.isAbsolute(this.uploadDir)
+        ? this.uploadDir
+        : path.join(process.cwd(), this.uploadDir);
+
+      const filePath = path.join(absoluteDir, cleanPath);
+
+      // Check if file exists before attempting deletion
+      if (fs.existsSync(filePath)) {
+        await fs.promises.unlink(filePath);
+        this.logger.log(`File deleted successfully: ${cleanPath}`);
+      } else {
+        this.logger.warn(`File not found for deletion: ${cleanPath}`);
+      }
     } catch (error) {
-      Logger.error(`Failed to delete file from S3: ${error.message}`);
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(`Failed to delete file: ${msg}`);
       // Don't throw error for delete operations to avoid blocking the main operation
     }
   }
 
-  async deleteMultipleFiles(
-    fileUrls: string[],
-    bucketName: string = this.bucketName,
-  ): Promise<void> {
-    const deletePromises = fileUrls.map((url) =>
-      this.deleteFile(url, bucketName),
-    );
+  async deleteMultipleFiles(fileUrls: string[]): Promise<void> {
+    const deletePromises = fileUrls.map((url) => this.deleteFile(url));
     await Promise.all(deletePromises);
   }
 }
