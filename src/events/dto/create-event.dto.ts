@@ -5,7 +5,6 @@ import {
   IsBoolean,
   IsOptional,
   IsArray,
-  IsUrl,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -45,7 +44,7 @@ export class CreateEventDto {
   eventEndDate: Date;
 
   @IsArray()
-  @IsUrl({}, { each: true })
+  @IsString({ each: true })
   @IsOptional()
   imageUrls?: string[];
 
