@@ -4,6 +4,10 @@ import { Repository } from 'typeorm';
 import { OpeningHours, DayOfWeek } from '../entities/opening-hours.entity';
 import { CreateOpeningHoursDto } from './dto/create-opening-hours.dto';
 import { UpdateOpeningHoursDto } from './dto/update-opening-hours.dto';
+import moment from 'moment-timezone';
+
+// Toronto timezone for accurate open/close status
+const TIMEZONE = 'America/Toronto';
 
 @Injectable()
 export class OpeningHoursService {
@@ -160,46 +164,69 @@ export class OpeningHoursService {
     nextOpenTime?: string;
   }> {
     try {
-      const now = new Date();
-      const currentDay = now
-        .toLocaleDateString('en-US', { weekday: 'long' })
-        .toLowerCase() as DayOfWeek;
-      const currentTime = now.toTimeString().substring(0, 5); // HH:MM format
+      // Use Toronto timezone for accurate status
+      const now = moment().tz(TIMEZONE);
+      const currentDay = now.format('dddd').toLowerCase() as DayOfWeek;
+      const currentTime = now.format('HH:mm'); // HH:MM format
+      const currentMinutes = this.timeToMinutes(currentTime);
 
+      // Check today's hours first
       const todayHours = await this.openingHoursRepository.findOne({
         where: { dayOfWeek: currentDay },
       });
 
-      if (!todayHours || !todayHours.isOpen || !todayHours.isActive) {
-        return { isOpen: false };
+      // Check if we're within today's opening hours
+      if (
+        todayHours &&
+        todayHours.isOpen &&
+        todayHours.isActive &&
+        todayHours.openTime &&
+        todayHours.closeTime
+      ) {
+        const openMinutes = this.timeToMinutes(todayHours.openTime);
+        const closeMinutes = this.timeToMinutes(todayHours.closeTime);
+
+        if (todayHours.isClosedNextDay) {
+          // Opens today, closes tomorrow (e.g., 11 PM - 2 AM)
+          // Currently open if we're past opening time
+          if (currentMinutes >= openMinutes) {
+            return { isOpen: true, currentHours: todayHours };
+          }
+        } else {
+          // Normal same-day hours (e.g., 11 AM - 11 PM)
+          if (currentMinutes >= openMinutes && currentMinutes <= closeMinutes) {
+            return { isOpen: true, currentHours: todayHours };
+          }
+        }
       }
 
-      const { openTime, closeTime, isClosedNextDay } = todayHours;
+      // Check if we're still within yesterday's overnight hours
+      const previousDay = now.clone().subtract(1, 'day');
+      const previousDayName = previousDay
+        .format('dddd')
+        .toLowerCase() as DayOfWeek;
 
-      if (!openTime || !closeTime) {
-        return { isOpen: false };
+      const yesterdayHours = await this.openingHoursRepository.findOne({
+        where: { dayOfWeek: previousDayName },
+      });
+
+      if (
+        yesterdayHours &&
+        yesterdayHours.isOpen &&
+        yesterdayHours.isActive &&
+        yesterdayHours.isClosedNextDay &&
+        yesterdayHours.openTime &&
+        yesterdayHours.closeTime
+      ) {
+        const closeMinutes = this.timeToMinutes(yesterdayHours.closeTime);
+        // If yesterday's hours go past midnight and we're before close time
+        if (currentMinutes <= closeMinutes) {
+          return { isOpen: true, currentHours: yesterdayHours };
+        }
       }
 
-      const currentMinutes = this.timeToMinutes(currentTime);
-      const openMinutes = this.timeToMinutes(openTime);
-      const closeMinutes = this.timeToMinutes(closeTime);
-
-      let isCurrentlyOpen = false;
-
-      if (isClosedNextDay) {
-        // Open past midnight (e.g., 11 PM to 2 AM)
-        isCurrentlyOpen =
-          currentMinutes >= openMinutes || currentMinutes <= closeMinutes;
-      } else {
-        // Normal hours (e.g., 9 AM to 10 PM)
-        isCurrentlyOpen =
-          currentMinutes >= openMinutes && currentMinutes <= closeMinutes;
-      }
-
-      return {
-        isOpen: isCurrentlyOpen,
-        currentHours: todayHours,
-      };
+      // Not currently open
+      return { isOpen: false, currentHours: todayHours || undefined };
     } catch {
       // Return closed status if there's any error
       return { isOpen: false };
