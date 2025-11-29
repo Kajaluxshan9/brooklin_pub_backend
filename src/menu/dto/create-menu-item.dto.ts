@@ -17,8 +17,8 @@ export class CreateMenuItemDto {
   name: string;
 
   @IsString()
-  @IsNotEmpty()
-  description: string;
+  @IsOptional()
+  description?: string;
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)

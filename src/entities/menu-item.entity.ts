@@ -19,7 +19,7 @@ export class MenuItem {
   @Column()
   name: string;
 
-  @Column('text')
+  @Column('text', { nullable: true, default: '' })
   description: string;
 
   // Store price as decimal(8,2) in Postgres but expose as number in TS
