@@ -24,6 +24,7 @@ export class EventsService {
       eventEndDate: createEventDto.eventEndDate,
       imageUrls: createEventDto.imageUrls || [],
       isActive: createEventDto.isActive !== false,
+      ticketLink: createEventDto.ticketLink || null,
     });
     return this.eventRepository.save(event);
   }

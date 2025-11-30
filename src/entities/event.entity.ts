@@ -51,6 +51,9 @@ export class Event {
   @Column('json', { nullable: true })
   imageUrls: string[];
 
+  @Column({ nullable: true })
+  ticketLink: string;
+
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 

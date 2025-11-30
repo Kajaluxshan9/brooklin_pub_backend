@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsOptional,
   IsArray,
+  IsUrl,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -51,4 +52,9 @@ export class CreateEventDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsString()
+  @IsUrl({}, { message: 'ticketLink must be a valid URL' })
+  @IsOptional()
+  ticketLink?: string;
 }
