@@ -14,6 +14,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { UploadModule } from './upload/upload.module';
 import { MeasurementModule } from './measurements/measurement.module';
 import { StoriesModule } from './stories/stories.module';
+import { ContactModule } from './contact/contact.module';
 import { User } from './entities/user.entity';
 import { MenuItem } from './entities/menu-item.entity';
 import { MenuCategory } from './entities/menu-category.entity';
@@ -76,6 +77,7 @@ import { StoryCategory } from './entities/story-category.entity';
     UploadModule,
     MeasurementModule,
     StoriesModule,
+    ContactModule,
   ],
   controllers: [AppController],
   providers: [AppService],

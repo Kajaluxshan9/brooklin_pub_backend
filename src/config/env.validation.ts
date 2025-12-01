@@ -38,6 +38,12 @@ interface EnvConfig {
   ADMIN_FRONTEND_URL: string;
   PASSWORD_RESET_PATH?: string;
 
+  // Contact Form
+  PUB_CONTACT_EMAIL?: string;
+
+  // Backend Public URL (for serving assets in emails)
+  BACKEND_PUBLIC_URL?: string;
+
   // Local File Storage (replaces AWS S3)
   UPLOAD_DIR?: string;
   UPLOAD_BASE_URL?: string;
@@ -82,6 +88,8 @@ const OPTIONAL_ENV_VARS: (keyof EnvConfig)[] = [
   'PASSWORD_RESET_PATH',
   'UPLOAD_DIR',
   'UPLOAD_BASE_URL',
+  'PUB_CONTACT_EMAIL',
+  'BACKEND_PUBLIC_URL',
 ];
 
 /**
