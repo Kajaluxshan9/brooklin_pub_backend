@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
-import { getRequiredEnv, getOptionalEnv } from '../config/env.validation';
+import { getRequiredEnv } from '../config/env.validation';
 import { CreateContactDto } from './dto';
 
 // Subject labels for better readability
@@ -30,9 +30,8 @@ export class ContactService {
     const user = getRequiredEnv('EMAIL_USER');
     const pass = getRequiredEnv('EMAIL_PASS');
     this.emailFrom = getRequiredEnv('EMAIL_FROM');
-    this.pubEmail = getOptionalEnv('PUB_CONTACT_EMAIL') || this.emailFrom;
-    this.backendPublicUrl =
-      getOptionalEnv('BACKEND_PUBLIC_URL') || 'http://localhost:5000';
+    this.pubEmail = getRequiredEnv('PUB_CONTACT_EMAIL');
+    this.backendPublicUrl = getRequiredEnv('BACKEND_PUBLIC_URL');
     this.logoUrl = `${this.backendPublicUrl}/uploads/assets/brooklinpub-logo.png`;
 
     // Create transport with validated credentials
