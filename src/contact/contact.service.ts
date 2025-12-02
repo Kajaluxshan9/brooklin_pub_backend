@@ -19,7 +19,7 @@ export class ContactService {
   private readonly logger = new Logger(ContactService.name);
   private transporter: nodemailer.Transporter;
   private readonly emailFrom: string;
-  private readonly pubEmail: string;
+  private readonly pubEmails: string[]; // Support multiple pub emails
   private readonly backendPublicUrl: string;
   private readonly logoUrl: string;
 
@@ -30,7 +30,20 @@ export class ContactService {
     const user = getRequiredEnv('EMAIL_USER');
     const pass = getRequiredEnv('EMAIL_PASS');
     this.emailFrom = getRequiredEnv('EMAIL_FROM');
-    this.pubEmail = getRequiredEnv('PUB_CONTACT_EMAIL');
+
+    // Parse multiple pub emails (comma-separated)
+    const pubEmailsRaw = getRequiredEnv('PUB_CONTACT_EMAIL');
+    this.pubEmails = pubEmailsRaw
+      .split(',')
+      .map((email) => email.trim())
+      .filter((email) => email.length > 0);
+
+    if (this.pubEmails.length === 0) {
+      throw new Error(
+        'PUB_CONTACT_EMAIL must contain at least one valid email address',
+      );
+    }
+
     this.backendPublicUrl = getRequiredEnv('BACKEND_PUBLIC_URL');
     this.logoUrl = `${this.backendPublicUrl}/uploads/assets/brooklinpub-logo.png`;
 
@@ -334,7 +347,7 @@ Brooklin Pub Contact Form
 
     const mailOptions = {
       from: this.emailFrom,
-      to: this.pubEmail,
+      to: this.pubEmails, // Send to all pub emails
       replyTo: email,
       subject: emailSubject,
       text: textContent,
@@ -344,7 +357,7 @@ Brooklin Pub Contact Form
     try {
       const info = await this.transporter.sendMail(mailOptions);
       this.logger.log(
-        `Pub notification email sent. Info: ${JSON.stringify(info)}`,
+        `Pub notification email sent to ${this.pubEmails.length} recipient(s): ${this.pubEmails.join(', ')}. Info: ${JSON.stringify(info)}`,
       );
       const preview = nodemailer.getTestMessageUrl(info);
       if (preview) this.logger.log(`Preview URL: ${preview}`);
@@ -424,7 +437,7 @@ Brooklin Pub Contact Form
         : `Message Received - Brooklin Pub`;
 
     const htmlContent = this.getEmailWrapper(`
-          ${this.getEmailHeader(isReservation ? 'Reservation Confirmed' : isCareers ? 'Application Received' : 'Message Received')}
+          ${this.getEmailHeader(isReservation ? 'Reservation Request Received' : isCareers ? 'Application Received' : 'Message Received')}
 
           <!-- Content -->
           <tr>

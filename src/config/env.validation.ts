@@ -38,7 +38,7 @@ interface EnvConfig {
   ADMIN_FRONTEND_URL: string;
   PASSWORD_RESET_PATH?: string;
 
-  // Contact Form
+  // Contact Form (supports multiple comma-separated emails)
   PUB_CONTACT_EMAIL: string;
 
   // Backend Public URL (for serving assets in emails)
