@@ -90,7 +90,10 @@ export class ContactService {
     })();
   }
 
-  async submitContactForm(contactDto: CreateContactDto): Promise<{
+  async submitContactForm(
+    contactDto: CreateContactDto,
+    cvFile?: Express.Multer.File,
+  ): Promise<{
     success: boolean;
     message: string;
   }> {
@@ -99,8 +102,8 @@ export class ContactService {
     const subjectLabel = subjectLabels[subject] || 'Contact Form Submission';
 
     try {
-      // Send notification email to pub
-      await this.sendPubNotification(contactDto, subjectLabel);
+      // Send notification email to pub (with CV attachment if present)
+      await this.sendPubNotification(contactDto, subjectLabel, cvFile);
 
       // Send confirmation email to customer
       await this.sendCustomerConfirmation(contactDto, subjectLabel);
@@ -196,6 +199,7 @@ export class ContactService {
   private async sendPubNotification(
     contactDto: CreateContactDto,
     subjectLabel: string,
+    cvFile?: Express.Multer.File,
   ): Promise<void> {
     const {
       name,
@@ -238,14 +242,26 @@ export class ContactService {
     // Build careers details section
     let careersDetailsHtml = '';
     if (isCareers) {
+      const cvAttachmentNote = cvFile
+        ? `
+            <tr>
+              <td style="padding: 10px 0; color: #6A3A1E; font-weight: 600; width: 140px; font-size: 14px;">CV/Resume</td>
+              <td style="padding: 10px 0; color: #3C1F0E; font-size: 14px;">
+                <span style="background: #4CAF50; color: #fff; padding: 4px 12px; border-radius: 3px; font-size: 12px; font-weight: 600;">📎 ${cvFile.originalname}</span>
+              </td>
+            </tr>
+          `
+        : '';
+
       careersDetailsHtml = `
         <div style="background: #FDF8F3; padding: 24px; border-radius: 4px; margin: 24px 0; border-left: 3px solid #D9A756;">
           <h3 style="color: #3C1F0E; margin: 0 0 18px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; font-weight: 600;">Application Details</h3>
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
-              <td style="padding: 10px 0; color: #6A3A1E; font-weight: 600; width: 140px; font-size: 14px;">Position Applied</td>
-              <td style="padding: 10px 0; color: #3C1F0E; font-size: 14px; font-weight: 500;">${position || 'Not specified'}</td>
+              <td style="padding: 10px 0; color: #6A3A1E; font-weight: 600; width: 140px; font-size: 14px; ${cvFile ? 'border-bottom: 1px solid rgba(217,167,86,0.2);' : ''}">Position Applied</td>
+              <td style="padding: 10px 0; color: #3C1F0E; font-size: 14px; font-weight: 500; ${cvFile ? 'border-bottom: 1px solid rgba(217,167,86,0.2);' : ''}">${position || 'Not specified'}</td>
             </tr>
+            ${cvAttachmentNote}
           </table>
         </div>
       `;
@@ -279,7 +295,7 @@ Guests: ${guestCount || 'Not specified'}
       isCareers
         ? `
 APPLICATION DETAILS
-Position: ${position || 'Not specified'}
+Position: ${position || 'Not specified'}${cvFile ? `\nCV/Resume: ${cvFile.originalname} (attached)` : ''}
 `
         : ''
     }
@@ -345,26 +361,65 @@ Brooklin Pub Contact Form
           ${this.getEmailFooter()}
     `);
 
-    const mailOptions = {
-      from: this.emailFrom,
-      to: this.pubEmails, // Send to all pub emails
-      replyTo: email,
-      subject: emailSubject,
-      text: textContent,
-      html: htmlContent,
-    };
-
-    try {
-      const info = await this.transporter.sendMail(mailOptions);
+    // Prepare attachments array if CV file is present
+    const attachments: nodemailer.Attachment[] = [];
+    if (cvFile) {
+      attachments.push({
+        filename: cvFile.originalname,
+        content: cvFile.buffer,
+        contentType: cvFile.mimetype,
+      });
       this.logger.log(
-        `Pub notification email sent to ${this.pubEmails.length} recipient(s): ${this.pubEmails.join(', ')}. Info: ${JSON.stringify(info)}`,
+        `Attaching CV file: ${cvFile.originalname} (${cvFile.size} bytes)`,
       );
-      const preview = nodemailer.getTestMessageUrl(info);
-      if (preview) this.logger.log(`Preview URL: ${preview}`);
-    } catch (error) {
-      this.logger.error('Failed to send pub notification email:', error);
-      throw error;
     }
+
+    // Send individual emails to each pub email for better deliverability
+    const sendPromises = this.pubEmails.map(async (pubEmail) => {
+      const mailOptions = {
+        from: this.emailFrom,
+        to: pubEmail,
+        replyTo: email,
+        subject: emailSubject,
+        text: textContent,
+        html: htmlContent,
+        attachments, // Include CV file if present
+      };
+
+      try {
+        const info = await this.transporter.sendMail(mailOptions);
+        this.logger.log(
+          `Pub notification email sent to ${pubEmail}. Info: ${JSON.stringify(info)}`,
+        );
+        const preview = nodemailer.getTestMessageUrl(info);
+        if (preview) this.logger.log(`Preview URL: ${preview}`);
+        return { success: true, email: pubEmail };
+      } catch (error) {
+        this.logger.error(
+          `Failed to send pub notification email to ${pubEmail}:`,
+          error,
+        );
+        return { success: false, email: pubEmail, error };
+      }
+    });
+
+    const results = await Promise.all(sendPromises);
+    const failedEmails = results.filter((r) => !r.success);
+
+    if (failedEmails.length === this.pubEmails.length) {
+      // All emails failed
+      throw new Error('Failed to send pub notification email to any recipient');
+    }
+
+    if (failedEmails.length > 0) {
+      this.logger.warn(
+        `Some pub notification emails failed: ${failedEmails.map((f) => f.email).join(', ')}`,
+      );
+    }
+
+    this.logger.log(
+      `Pub notification emails sent to ${results.filter((r) => r.success).length}/${this.pubEmails.length} recipient(s)`,
+    );
   }
 
   private async sendCustomerConfirmation(
