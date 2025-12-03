@@ -152,7 +152,7 @@ export class ContactService {
               <img src="${this.logoUrl}" alt="Brooklin Pub" style="max-width: 120px; height: auto; margin-bottom: 20px; opacity: 0.9;" />
               <p style="color: rgba(255,255,255,0.7); margin: 0 0 15px 0; font-size: 13px; line-height: 1.6;">
                 15 Baldwin Street, Whitby, ON L1M 1A2<br>
-                (905) 655-3513
+                (905) 425-3055
               </p>
               <p style="margin: 0 0 20px 0;">
                 <a href="https://facebook.com/brooklinpub" style="color: #D9A756; text-decoration: none; margin: 0 12px; font-size: 13px;">Facebook</a>
@@ -524,7 +524,7 @@ Brooklin Pub Contact Form
                 <table style="width: 100%; max-width: 280px; margin: 0 auto; border-collapse: collapse;">
                   <tr>
                     <td style="padding: 8px 0; color: #6A3A1E; font-size: 14px;">Phone</td>
-                    <td style="padding: 8px 0; text-align: right;"><a href="tel:9056553513" style="color: #B08030; text-decoration: none; font-weight: 500; font-size: 14px;">(905) 655-3513</a></td>
+                    <td style="padding: 8px 0; text-align: right;"><a href="tel:9056553513" style="color: #B08030; text-decoration: none; font-weight: 500; font-size: 14px;">(905) 425-3055</a></td>
                   </tr>
                   <tr>
                     <td style="padding: 8px 0; color: #6A3A1E; font-size: 14px;">Email</td>
@@ -600,7 +600,7 @@ YOUR MESSAGE
 
 NEED TO REACH US SOONER?
 ─────────────────────────
-Phone: (905) 655-3513
+Phone: (905) 425-3055
 Email: brooklinpub@gmail.com
 Address: 15 Baldwin Street, Whitby, ON
 
