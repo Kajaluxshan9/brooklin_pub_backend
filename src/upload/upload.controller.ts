@@ -18,7 +18,7 @@ export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
   @Post('images')
-  @UseInterceptors(FilesInterceptor('images', 5)) // Max 5 files
+  @UseInterceptors(FilesInterceptor('images', 50)) // Max 50 files
   async uploadImages(
     @UploadedFiles() files: Express.Multer.File[],
     @Body('folder') folder?: string,

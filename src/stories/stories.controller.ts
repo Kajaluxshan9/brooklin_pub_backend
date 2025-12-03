@@ -51,6 +51,15 @@ export class StoriesController {
     return this.storiesService.toggleCategoryStatus(id);
   }
 
+  @Patch('categories/:id/move')
+  @UseGuards(JwtAuthGuard)
+  moveCategoryOrder(
+    @Param('id') id: string,
+    @Body() body: { direction: 'up' | 'down' },
+  ) {
+    return this.storiesService.moveCategoryOrder(id, body.direction);
+  }
+
   @Delete('categories/:id')
   @UseGuards(JwtAuthGuard)
   removeCategory(@Param('id') id: string) {
