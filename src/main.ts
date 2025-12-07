@@ -42,10 +42,10 @@ async function bootstrap() {
   }
 
   // Serve static files from uploads directory
-  app.useStaticAssets(absoluteUploadDir, {
-    prefix: '/uploads/',
-  });
-  Logger.log(`📁 Serving uploads from: ${absoluteUploadDir}`);
+  // app.useStaticAssets(absoluteUploadDir, {
+  //   prefix: '/uploads/',
+  // });
+  // Logger.log(`📁 Serving uploads from: ${absoluteUploadDir}`);
 
   // Enable cookie parser
   app.use(cookieParser());
