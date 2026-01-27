@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
-import { getRequiredEnv } from '../config/env.validation';
+import { getRequiredEnv, getOptionalEnv } from '../config/env.validation';
 import { CreateContactDto } from './dto';
 
 // Subject labels for better readability
@@ -14,22 +14,45 @@ const subjectLabels: Record<string, string> = {
   other: 'Other Inquiry',
 };
 
+// Subject types that should use events/reservations email
+const EVENT_SUBJECT_TYPES = ['reservation', 'event'];
+
 @Injectable()
 export class ContactService {
   private readonly logger = new Logger(ContactService.name);
-  private transporter: nodemailer.Transporter;
-  private readonly emailFrom: string;
+  private primaryTransporter: nodemailer.Transporter;
+  private eventsTransporter: nodemailer.Transporter | null = null;
+  private readonly primaryEmailFrom: string;
+  private readonly eventsEmailFrom: string;
   private readonly pubEmails: string[]; // Support multiple pub emails
   private readonly backendPublicUrl: string;
   private readonly logoUrl: string;
+  private readonly hasEventsTransporter: boolean;
 
   constructor() {
-    // Read from validated env vars
+    // Read primary email settings from validated env vars
     const host = getRequiredEnv('EMAIL_HOST');
     const port = Number(getRequiredEnv('EMAIL_PORT'));
     const user = getRequiredEnv('EMAIL_USER');
     const pass = getRequiredEnv('EMAIL_PASS');
-    this.emailFrom = getRequiredEnv('EMAIL_FROM');
+    this.primaryEmailFrom = getRequiredEnv('EMAIL_FROM');
+
+    // Read optional events/reservations email settings
+    const eventsHost = getOptionalEnv('EMAIL_EVENTS_HOST');
+    const eventsPort = getOptionalEnv('EMAIL_EVENTS_PORT');
+    const eventsUser = getOptionalEnv('EMAIL_EVENTS_USER');
+    const eventsPass = getOptionalEnv('EMAIL_EVENTS_PASS');
+    const eventsFrom = getOptionalEnv('EMAIL_EVENTS_FROM');
+
+    // Check if events email is configured
+    this.hasEventsTransporter = !!(
+      eventsHost &&
+      eventsPort &&
+      eventsUser &&
+      eventsPass &&
+      eventsFrom
+    );
+    this.eventsEmailFrom = eventsFrom || this.primaryEmailFrom;
 
     // Parse multiple pub emails (comma-separated)
     const pubEmailsRaw = getRequiredEnv('PUB_CONTACT_EMAIL');
@@ -47,8 +70,8 @@ export class ContactService {
     this.backendPublicUrl = getRequiredEnv('BACKEND_PUBLIC_URL');
     this.logoUrl = `${this.backendPublicUrl}/uploads/assets/brooklinpub-logo.png`;
 
-    // Create transport with validated credentials
-    this.transporter = nodemailer.createTransport({
+    // Create primary transport with validated credentials
+    this.primaryTransporter = nodemailer.createTransport({
       host,
       port,
       secure: port === 465, // true for 465, false for other ports
@@ -58,19 +81,33 @@ export class ContactService {
       },
     });
 
-    // Verify transporter
+    // Create events transport if configured
+    if (this.hasEventsTransporter) {
+      this.eventsTransporter = nodemailer.createTransport({
+        host: eventsHost,
+        port: Number(eventsPort),
+        secure: Number(eventsPort) === 465,
+        auth: {
+          user: eventsUser,
+          pass: eventsPass,
+        },
+      });
+    }
+
+    // Verify transporters
     (async () => {
+      // Verify primary transporter
       try {
-        await this.transporter.verify();
-        this.logger.log('Contact SMTP transporter verified');
+        await this.primaryTransporter.verify();
+        this.logger.log('Primary SMTP transporter verified');
       } catch (err) {
-        this.logger.warn('Contact SMTP transporter could not be verified', err);
+        this.logger.warn('Primary SMTP transporter could not be verified', err);
         if (getRequiredEnv('NODE_ENV') !== 'production') {
           this.logger.log(
             'Falling back to Ethereal test account for development',
           );
           const testAccount = await nodemailer.createTestAccount();
-          this.transporter = nodemailer.createTransport({
+          this.primaryTransporter = nodemailer.createTransport({
             host: 'smtp.ethereal.email',
             port: 587,
             secure: false,
@@ -82,12 +119,46 @@ export class ContactService {
           this.logger.log(`Ethereal account user: ${testAccount.user}`);
         } else {
           this.logger.error(
-            'Contact SMTP transporter verification failed in production',
+            'Primary SMTP transporter verification failed in production',
             err,
           );
         }
       }
+
+      // Verify events transporter if configured
+      if (this.eventsTransporter) {
+        try {
+          await this.eventsTransporter.verify();
+          this.logger.log('Events SMTP transporter verified');
+        } catch (err) {
+          this.logger.warn(
+            'Events SMTP transporter could not be verified, falling back to primary',
+            err,
+          );
+          this.eventsTransporter = null;
+        }
+      }
     })();
+  }
+
+  /**
+   * Get the appropriate transporter based on subject type
+   */
+  private getTransporter(subject: string): nodemailer.Transporter {
+    if (EVENT_SUBJECT_TYPES.includes(subject) && this.eventsTransporter) {
+      return this.eventsTransporter;
+    }
+    return this.primaryTransporter;
+  }
+
+  /**
+   * Get the appropriate email from address based on subject type
+   */
+  private getEmailFrom(subject: string): string {
+    if (EVENT_SUBJECT_TYPES.includes(subject) && this.hasEventsTransporter) {
+      return this.eventsEmailFrom;
+    }
+    return this.primaryEmailFrom;
   }
 
   async submitContactForm(
@@ -374,10 +445,18 @@ Brooklin Pub Contact Form
       );
     }
 
+    // Get the appropriate transporter and email from based on subject
+    const transporter = this.getTransporter(subject);
+    const emailFrom = this.getEmailFrom(subject);
+
+    this.logger.log(
+      `Using ${EVENT_SUBJECT_TYPES.includes(subject) && this.eventsTransporter ? 'events' : 'primary'} transporter for subject: ${subject}`,
+    );
+
     // Send individual emails to each pub email for better deliverability
     const sendPromises = this.pubEmails.map(async (pubEmail) => {
       const mailOptions = {
-        from: this.emailFrom,
+        from: emailFrom,
         to: pubEmail,
         replyTo: email,
         subject: emailSubject,
@@ -387,7 +466,7 @@ Brooklin Pub Contact Form
       };
 
       try {
-        const info = await this.transporter.sendMail(mailOptions);
+        const info = await transporter.sendMail(mailOptions);
         this.logger.log(
           `Pub notification email sent to ${pubEmail}. Info: ${JSON.stringify(info)}`,
         );
@@ -615,8 +694,12 @@ Brooklin Pub
 brooklinpub.com
     `;
 
+    // Get the appropriate transporter and email from based on subject
+    const transporter = this.getTransporter(subject);
+    const emailFrom = this.getEmailFrom(subject);
+
     const mailOptions = {
-      from: this.emailFrom,
+      from: emailFrom,
       to: email,
       subject: emailSubject,
       text: textContent,
@@ -624,7 +707,7 @@ brooklinpub.com
     };
 
     try {
-      const info = await this.transporter.sendMail(mailOptions);
+      const info = await transporter.sendMail(mailOptions);
       this.logger.log(
         `Customer confirmation email sent to ${email}. Info: ${JSON.stringify(info)}`,
       );

@@ -27,12 +27,19 @@ interface EnvConfig {
   // CORS
   CORS_ORIGINS: string;
 
-  // Email
+  // Email (Primary - for general inquiries)
   EMAIL_HOST: string;
   EMAIL_PORT: string;
   EMAIL_USER: string;
   EMAIL_PASS: string;
   EMAIL_FROM: string;
+
+  // Email (Secondary - for events/reservations, optional - falls back to primary)
+  EMAIL_EVENTS_HOST?: string;
+  EMAIL_EVENTS_PORT?: string;
+  EMAIL_EVENTS_USER?: string;
+  EMAIL_EVENTS_PASS?: string;
+  EMAIL_EVENTS_FROM?: string;
 
   // Frontend
   ADMIN_FRONTEND_URL: string;
@@ -90,6 +97,11 @@ const OPTIONAL_ENV_VARS: (keyof EnvConfig)[] = [
   'PASSWORD_RESET_PATH',
   'UPLOAD_DIR',
   'UPLOAD_BASE_URL',
+  'EMAIL_EVENTS_HOST',
+  'EMAIL_EVENTS_PORT',
+  'EMAIL_EVENTS_USER',
+  'EMAIL_EVENTS_PASS',
+  'EMAIL_EVENTS_FROM',
 ];
 
 /**
