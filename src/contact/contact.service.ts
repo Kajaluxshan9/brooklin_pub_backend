@@ -116,18 +116,26 @@ export class ContactService {
       });
     }
 
-    // Verify transporters
-    (async () => {
-      // Verify primary transporter
-      try {
-        await this.primaryTransporter.verify();
-        this.logger.log('Primary SMTP transporter verified');
-      } catch (err) {
-        this.logger.warn('Primary SMTP transporter could not be verified', err);
-        if (getRequiredEnv('NODE_ENV') !== 'production') {
-          this.logger.log(
-            'Falling back to Ethereal test account for development',
-          );
+    // Verify transporters - run verification but don't block constructor
+    // The verification is for logging purposes only, transporters work without verification
+    this.verifyTransporters();
+  }
+
+  /**
+   * Verify SMTP transporters (non-blocking, for logging purposes)
+   */
+  private async verifyTransporters(): Promise<void> {
+    // Verify primary transporter
+    try {
+      await this.primaryTransporter.verify();
+      this.logger.log('Primary SMTP transporter verified');
+    } catch (err) {
+      this.logger.warn('Primary SMTP transporter could not be verified', err);
+      if (getRequiredEnv('NODE_ENV') !== 'production') {
+        this.logger.log(
+          'Falling back to Ethereal test account for development',
+        );
+        try {
           const testAccount = await nodemailer.createTestAccount();
           this.primaryTransporter = nodemailer.createTransport({
             host: 'smtp.ethereal.email',
@@ -139,32 +147,42 @@ export class ContactService {
             },
           });
           this.logger.log(`Ethereal account user: ${testAccount.user}`);
-        } else {
+        } catch (etherealErr) {
           this.logger.error(
-            'Primary SMTP transporter verification failed in production',
-            err,
+            'Failed to create Ethereal test account',
+            etherealErr,
           );
         }
+      } else {
+        this.logger.error(
+          'Primary SMTP transporter verification failed in production',
+          err,
+        );
       }
+    }
 
-      // Verify events transporter if configured
-      if (this.eventsTransporter) {
-        try {
-          await this.eventsTransporter.verify();
-          this.logger.log('Events SMTP transporter verified successfully');
-          this.logger.log(
-            `Events transporter will be used for: ${EVENT_SUBJECT_TYPES.join(', ')}`,
-          );
-        } catch (err) {
-          this.logger.warn(
-            'Events SMTP transporter could not be verified, falling back to primary',
-            err,
-          );
-          this.eventsTransporter = null;
-          this.hasEventsTransporter = false; // Also update this flag for consistency
-        }
+    // Verify events transporter if configured
+    // IMPORTANT: Do NOT set eventsTransporter to null on verification failure
+    // Gmail often fails verification but still works for sending emails
+    if (this.eventsTransporter) {
+      try {
+        await this.eventsTransporter.verify();
+        this.logger.log('Events SMTP transporter verified successfully');
+        this.logger.log(
+          `Events transporter will be used for: ${EVENT_SUBJECT_TYPES.join(', ')}`,
+        );
+      } catch (err) {
+        // Log warning but DO NOT disable the transporter
+        // Many SMTP servers fail verification but work fine for sending
+        this.logger.warn(
+          'Events SMTP transporter verification failed (this may be normal for some SMTP servers)',
+          err,
+        );
+        this.logger.log(
+          'Events transporter will still be used - verification failure does not mean sending will fail',
+        );
       }
-    })();
+    }
   }
 
   /**
