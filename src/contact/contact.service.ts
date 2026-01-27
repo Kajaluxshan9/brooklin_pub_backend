@@ -24,7 +24,8 @@ export class ContactService {
   private eventsTransporter: nodemailer.Transporter | null = null;
   private readonly primaryEmailFrom: string;
   private readonly eventsEmailFrom: string;
-  private readonly pubEmails: string[]; // Support multiple pub emails
+  private readonly pubEmails: string[]; // Support multiple pub emails for general inquiries
+  private readonly eventsEmails: string[]; // Support multiple emails for events/reservations
   private readonly backendPublicUrl: string;
   private readonly logoUrl: string;
   private readonly hasEventsTransporter: boolean;
@@ -65,6 +66,20 @@ export class ContactService {
       throw new Error(
         'PUB_CONTACT_EMAIL must contain at least one valid email address',
       );
+    }
+
+    // Parse multiple events emails (comma-separated, optional - falls back to pubEmails)
+    const eventsEmailsRaw = getOptionalEnv('PUB_EVENTS_CONTACT_EMAIL');
+    if (eventsEmailsRaw) {
+      this.eventsEmails = eventsEmailsRaw
+        .split(',')
+        .map((email) => email.trim())
+        .filter((email) => email.length > 0);
+      if (this.eventsEmails.length === 0) {
+        this.eventsEmails = this.pubEmails; // Fallback to pub emails
+      }
+    } else {
+      this.eventsEmails = this.pubEmails; // Fallback to pub emails
     }
 
     this.backendPublicUrl = getRequiredEnv('BACKEND_PUBLIC_URL');
@@ -159,6 +174,16 @@ export class ContactService {
       return this.eventsEmailFrom;
     }
     return this.primaryEmailFrom;
+  }
+
+  /**
+   * Get the appropriate recipient emails based on subject type
+   */
+  private getRecipientEmails(subject: string): string[] {
+    if (EVENT_SUBJECT_TYPES.includes(subject)) {
+      return this.eventsEmails;
+    }
+    return this.pubEmails;
   }
 
   async submitContactForm(
@@ -453,11 +478,18 @@ Brooklin Pub Contact Form
       `Using ${EVENT_SUBJECT_TYPES.includes(subject) && this.eventsTransporter ? 'events' : 'primary'} transporter for subject: ${subject}`,
     );
 
-    // Send individual emails to each pub email for better deliverability
-    const sendPromises = this.pubEmails.map(async (pubEmail) => {
+    // Get the appropriate recipient emails based on subject type
+    const recipientEmails = this.getRecipientEmails(subject);
+
+    this.logger.log(
+      `Sending to ${EVENT_SUBJECT_TYPES.includes(subject) ? 'events' : 'general'} recipient list: ${recipientEmails.length} recipient(s)`,
+    );
+
+    // Send individual emails to each recipient for better deliverability
+    const sendPromises = recipientEmails.map(async (recipientEmail) => {
       const mailOptions = {
         from: emailFrom,
-        to: pubEmail,
+        to: recipientEmail,
         replyTo: email,
         subject: emailSubject,
         text: textContent,
@@ -468,36 +500,36 @@ Brooklin Pub Contact Form
       try {
         const info = await transporter.sendMail(mailOptions);
         this.logger.log(
-          `Pub notification email sent to ${pubEmail}. Info: ${JSON.stringify(info)}`,
+          `Notification email sent to ${recipientEmail}. Info: ${JSON.stringify(info)}`,
         );
         const preview = nodemailer.getTestMessageUrl(info);
         if (preview) this.logger.log(`Preview URL: ${preview}`);
-        return { success: true, email: pubEmail };
+        return { success: true, email: recipientEmail };
       } catch (error) {
         this.logger.error(
-          `Failed to send pub notification email to ${pubEmail}:`,
+          `Failed to send notification email to ${recipientEmail}:`,
           error,
         );
-        return { success: false, email: pubEmail, error };
+        return { success: false, email: recipientEmail, error };
       }
     });
 
     const results = await Promise.all(sendPromises);
     const failedEmails = results.filter((r) => !r.success);
 
-    if (failedEmails.length === this.pubEmails.length) {
+    if (failedEmails.length === recipientEmails.length) {
       // All emails failed
-      throw new Error('Failed to send pub notification email to any recipient');
+      throw new Error('Failed to send notification email to any recipient');
     }
 
     if (failedEmails.length > 0) {
       this.logger.warn(
-        `Some pub notification emails failed: ${failedEmails.map((f) => f.email).join(', ')}`,
+        `Some notification emails failed: ${failedEmails.map((f) => f.email).join(', ')}`,
       );
     }
 
     this.logger.log(
-      `Pub notification emails sent to ${results.filter((r) => r.success).length}/${this.pubEmails.length} recipient(s)`,
+      `Notification emails sent to ${results.filter((r) => r.success).length}/${recipientEmails.length} recipient(s)`,
     );
   }
 

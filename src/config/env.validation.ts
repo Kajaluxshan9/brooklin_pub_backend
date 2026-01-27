@@ -48,6 +48,9 @@ interface EnvConfig {
   // Contact Form (supports multiple comma-separated emails)
   PUB_CONTACT_EMAIL: string;
 
+  // Events/Reservations Contact (supports multiple comma-separated emails, optional - falls back to PUB_CONTACT_EMAIL)
+  PUB_EVENTS_CONTACT_EMAIL?: string;
+
   // Backend Public URL (for serving assets in emails)
   BACKEND_PUBLIC_URL: string;
 
@@ -102,6 +105,7 @@ const OPTIONAL_ENV_VARS: (keyof EnvConfig)[] = [
   'EMAIL_EVENTS_USER',
   'EMAIL_EVENTS_PASS',
   'EMAIL_EVENTS_FROM',
+  'PUB_EVENTS_CONTACT_EMAIL',
 ];
 
 /**
