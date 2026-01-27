@@ -28,7 +28,7 @@ export class ContactService {
   private readonly eventsEmails: string[]; // Support multiple emails for events/reservations
   private readonly backendPublicUrl: string;
   private readonly logoUrl: string;
-  private readonly hasEventsTransporter: boolean;
+  private hasEventsTransporter: boolean; // Changed from readonly - can be updated if verification fails
 
   constructor() {
     // Read primary email settings from validated env vars
@@ -54,6 +54,13 @@ export class ContactService {
       eventsFrom
     );
     this.eventsEmailFrom = eventsFrom || this.primaryEmailFrom;
+
+    // Log configuration status
+    this.logger.log(`Events SMTP configured: ${this.hasEventsTransporter}`);
+    if (this.hasEventsTransporter) {
+      this.logger.log(`Events SMTP user: ${eventsUser}`);
+      this.logger.log(`Events email from: ${this.eventsEmailFrom}`);
+    }
 
     // Parse multiple pub emails (comma-separated)
     const pubEmailsRaw = getRequiredEnv('PUB_CONTACT_EMAIL');
@@ -144,13 +151,17 @@ export class ContactService {
       if (this.eventsTransporter) {
         try {
           await this.eventsTransporter.verify();
-          this.logger.log('Events SMTP transporter verified');
+          this.logger.log('Events SMTP transporter verified successfully');
+          this.logger.log(
+            `Events transporter will be used for: ${EVENT_SUBJECT_TYPES.join(', ')}`,
+          );
         } catch (err) {
           this.logger.warn(
             'Events SMTP transporter could not be verified, falling back to primary',
             err,
           );
           this.eventsTransporter = null;
+          this.hasEventsTransporter = false; // Also update this flag for consistency
         }
       }
     })();
@@ -168,9 +179,10 @@ export class ContactService {
 
   /**
    * Get the appropriate email from address based on subject type
+   * Uses eventsTransporter check to ensure consistency with getTransporter
    */
   private getEmailFrom(subject: string): string {
-    if (EVENT_SUBJECT_TYPES.includes(subject) && this.hasEventsTransporter) {
+    if (EVENT_SUBJECT_TYPES.includes(subject) && this.eventsTransporter) {
       return this.eventsEmailFrom;
     }
     return this.primaryEmailFrom;
