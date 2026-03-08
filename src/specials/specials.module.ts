@@ -4,9 +4,10 @@ import { SpecialsService } from './specials.service';
 import { SpecialsController } from './specials.controller';
 import { Special } from '../entities/special.entity';
 import { UploadModule } from '../upload/upload.module';
+import { NewsletterModule } from '../newsletter/newsletter.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Special]), UploadModule],
+  imports: [TypeOrmModule.forFeature([Special]), UploadModule, NewsletterModule],
   controllers: [SpecialsController],
   providers: [SpecialsService],
   exports: [SpecialsService],

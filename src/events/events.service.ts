@@ -1,15 +1,19 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Event } from '../entities/event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
+import { NewsletterService } from '../newsletter/newsletter.service';
 
 @Injectable()
 export class EventsService {
+  private readonly logger = new Logger(EventsService.name);
+
   constructor(
     @InjectRepository(Event)
     private eventRepository: Repository<Event>,
+    private newsletterService: NewsletterService,
   ) {}
 
   async create(createEventDto: CreateEventDto): Promise<Event> {
@@ -26,7 +30,16 @@ export class EventsService {
       isActive: createEventDto.isActive !== false,
       ticketLink: createEventDto.ticketLink || null,
     });
-    return this.eventRepository.save(event);
+    const savedEvent = await this.eventRepository.save(event);
+
+    // Notify subscribers about the new event (non-blocking)
+    if (savedEvent.isActive) {
+      this.newsletterService.notifyNewEvent(savedEvent).catch((err) =>
+        this.logger.error('Failed to send event newsletter', err),
+      );
+    }
+
+    return savedEvent;
   }
 
   async findAll(): Promise<Event[]> {

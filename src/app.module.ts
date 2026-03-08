@@ -15,6 +15,7 @@ import { UploadModule } from './upload/upload.module';
 import { MeasurementModule } from './measurements/measurement.module';
 import { StoriesModule } from './stories/stories.module';
 import { ContactModule } from './contact/contact.module';
+import { NewsletterModule } from './newsletter/newsletter.module';
 import { User } from './entities/user.entity';
 import { MenuItem } from './entities/menu-item.entity';
 import { MenuCategory } from './entities/menu-category.entity';
@@ -27,6 +28,7 @@ import { OpeningHours } from './entities/opening-hours.entity';
 import { Todo } from './entities/todo.entity';
 import { Story } from './entities/story.entity';
 import { StoryCategory } from './entities/story-category.entity';
+import { Subscriber } from './entities/subscriber.entity';
 
 @Module({
   imports: [
@@ -56,6 +58,7 @@ import { StoryCategory } from './entities/story-category.entity';
             Todo,
             Story,
             StoryCategory,
+            Subscriber,
           ],
           synchronize:
             configService.getOrThrow<string>('NODE_ENV') !== 'production',
@@ -78,6 +81,7 @@ import { StoryCategory } from './entities/story-category.entity';
     MeasurementModule,
     StoriesModule,
     ContactModule,
+    NewsletterModule,
   ],
   controllers: [AppController],
   providers: [AppService],

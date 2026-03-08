@@ -5,6 +5,7 @@ import { Special } from '../entities/special.entity';
 import { CreateSpecialDto } from './dto/create-special.dto';
 import { UpdateSpecialDto } from './dto/update-special.dto';
 import { UploadService } from '../upload/upload.service';
+import { NewsletterService } from '../newsletter/newsletter.service';
 
 @Injectable()
 export class SpecialsService {
@@ -13,6 +14,7 @@ export class SpecialsService {
     @InjectRepository(Special)
     private specialRepository: Repository<Special>,
     private uploadService: UploadService,
+    private newsletterService: NewsletterService,
   ) {}
 
   async findAll(): Promise<Special[]> {
@@ -40,7 +42,16 @@ export class SpecialsService {
 
   async create(createSpecialDto: CreateSpecialDto): Promise<Special> {
     const special = this.specialRepository.create(createSpecialDto);
-    return this.specialRepository.save(special);
+    const savedSpecial = await this.specialRepository.save(special);
+
+    // Notify subscribers about the new special (non-blocking)
+    if (savedSpecial.isActive) {
+      this.newsletterService.notifyNewSpecial(savedSpecial).catch((err) =>
+        this.logger.error('Failed to send special newsletter', err),
+      );
+    }
+
+    return savedSpecial;
   }
 
   async update(

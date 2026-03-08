@@ -11,6 +11,7 @@ import { Special } from './entities/special.entity';
 import { Event } from './entities/event.entity';
 import { OpeningHours } from './entities/opening-hours.entity';
 import { Todo } from './entities/todo.entity';
+import { Subscriber } from './entities/subscriber.entity';
 
 config();
 
@@ -49,6 +50,7 @@ export const AppDataSource = new DataSource({
     Event,
     OpeningHours,
     Todo,
+    Subscriber,
     MenuItemMeasurement,
     'src/entities/**/*.entity.ts',
   ],
