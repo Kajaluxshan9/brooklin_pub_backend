@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual, In } from 'typeorm';
+import { Repository, LessThanOrEqual } from 'typeorm';
 import {
   ScheduledNotification,
   NotificationType,
@@ -178,5 +178,81 @@ export class NotificationSchedulerService {
     }
 
     await this.newsletterService.notifyNewEvent(event);
+  }
+
+  // ─── Admin Query Methods ────────────────────────────────────────
+
+  async findAll(): Promise<ScheduledNotification[]> {
+    return this.notificationRepo.find({
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getStats(): Promise<{
+    total: number;
+    pending: number;
+    sent: number;
+    failed: number;
+    cancelled: number;
+  }> {
+    const total = await this.notificationRepo.count();
+    const pending = await this.notificationRepo.count({
+      where: { status: NotificationStatus.PENDING },
+    });
+    const sent = await this.notificationRepo.count({
+      where: { status: NotificationStatus.SENT },
+    });
+    const failed = await this.notificationRepo.count({
+      where: { status: NotificationStatus.FAILED },
+    });
+    return {
+      total,
+      pending,
+      sent,
+      failed,
+      cancelled: total - pending - sent - failed,
+    };
+  }
+
+  /**
+   * Returns notifications enriched with the referenced special/event title.
+   */
+  async findAllWithDetails(): Promise<
+    (ScheduledNotification & { referenceTitle: string })[]
+  > {
+    const notifications = await this.findAll();
+
+    const specialIds = notifications
+      .filter((n) => n.type === NotificationType.SPECIAL)
+      .map((n) => n.referenceId);
+    const eventIds = notifications
+      .filter((n) => n.type === NotificationType.EVENT)
+      .map((n) => n.referenceId);
+
+    const [specials, events] = await Promise.all([
+      specialIds.length > 0
+        ? this.specialRepo
+            .createQueryBuilder('s')
+            .select(['s.id', 's.title'])
+            .where('s.id IN (:...ids)', { ids: specialIds })
+            .getMany()
+        : Promise.resolve([]),
+      eventIds.length > 0
+        ? this.eventRepo
+            .createQueryBuilder('e')
+            .select(['e.id', 'e.title'])
+            .where('e.id IN (:...ids)', { ids: eventIds })
+            .getMany()
+        : Promise.resolve([]),
+    ]);
+
+    const titleMap = new Map<string, string>();
+    specials.forEach((s) => titleMap.set(s.id, s.title));
+    events.forEach((e) => titleMap.set(e.id, e.title));
+
+    return notifications.map((n) => ({
+      ...n,
+      referenceTitle: titleMap.get(n.referenceId) || '(Deleted)',
+    }));
   }
 }
