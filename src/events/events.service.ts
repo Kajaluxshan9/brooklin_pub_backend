@@ -5,6 +5,8 @@ import { Event } from '../entities/event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { NewsletterService } from '../newsletter/newsletter.service';
+import { NotificationSchedulerService } from '../notifications/notification-scheduler.service';
+import { NotificationType } from '../entities/scheduled-notification.entity';
 
 @Injectable()
 export class EventsService {
@@ -14,6 +16,7 @@ export class EventsService {
     @InjectRepository(Event)
     private eventRepository: Repository<Event>,
     private newsletterService: NewsletterService,
+    private notificationScheduler: NotificationSchedulerService,
   ) {}
 
   async create(createEventDto: CreateEventDto): Promise<Event> {
@@ -32,11 +35,22 @@ export class EventsService {
     });
     const savedEvent = await this.eventRepository.save(event);
 
-    // Notify subscribers about the new event (non-blocking)
+    // Notify subscribers — schedule for displayStartDate or send immediately
     if (savedEvent.isActive) {
-      this.newsletterService.notifyNewEvent(savedEvent).catch((err) =>
-        this.logger.error('Failed to send event newsletter', err),
-      );
+      const sendNow =
+        await this.notificationScheduler.scheduleOrSendImmediately(
+          NotificationType.EVENT,
+          savedEvent.id,
+          savedEvent.displayStartDate,
+        );
+
+      if (sendNow) {
+        this.newsletterService
+          .notifyNewEvent(savedEvent)
+          .catch((err) =>
+            this.logger.error('Failed to send event newsletter', err),
+          );
+      }
     }
 
     return savedEvent;
@@ -91,6 +105,13 @@ export class EventsService {
 
   async remove(id: string): Promise<void> {
     const event = await this.findOne(id);
+
+    // Cancel any pending scheduled notifications
+    await this.notificationScheduler.cancelPendingNotifications(
+      NotificationType.EVENT,
+      id,
+    );
+
     await this.eventRepository.remove(event);
   }
 }

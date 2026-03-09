@@ -69,9 +69,7 @@ export class NewsletterService {
             secure: false,
             auth: { user: testAccount.user, pass: testAccount.pass },
           });
-          this.logger.log(
-            `Newsletter using Ethereal: ${testAccount.user}`,
-          );
+          this.logger.log(`Newsletter using Ethereal: ${testAccount.user}`);
         }
       }
     })();
@@ -96,7 +94,9 @@ export class NewsletterService {
       existing.isActive = true;
       existing.unsubscribedAt = null;
       await this.subscriberRepository.save(existing);
-      return { message: 'Welcome back! Your subscription has been reactivated.' };
+      return {
+        message: 'Welcome back! Your subscription has been reactivated.',
+      };
     }
 
     const subscriber = this.subscriberRepository.create({
@@ -189,12 +189,14 @@ export class NewsletterService {
   }
 
   /**
-   * Send newsletter email to all active subscribers about a new event
+   * Send newsletter email to all active subscribers about a new event.
+   * Message is specific to the event type (Live Music, Trivia Night, etc.).
    */
   async notifyNewEvent(event: {
     id: string;
     title: string;
     description: string;
+    type: string;
     eventStartDate: Date;
     imageUrls?: string[];
   }): Promise<void> {
@@ -215,6 +217,18 @@ export class NewsletterService {
       },
     );
 
+    const eventTime = new Date(event.eventStartDate).toLocaleTimeString(
+      'en-US',
+      {
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone: 'America/Toronto',
+      },
+    );
+
+    // Type-specific labels and emoji
+    const eventMeta = this.getEventTypeMeta(event.type);
+
     const eventUrl = `${this.frontendUrl}/events`;
     const imageUrl =
       event.imageUrls && event.imageUrls.length > 0
@@ -225,20 +239,20 @@ export class NewsletterService {
       const unsubscribeUrl = `${this.frontendUrl}/unsubscribe?token=${subscriber.unsubscribeToken}`;
 
       const html = this.buildEmailTemplate({
-        preheader: `New Event: ${event.title} on ${eventDate}`,
-        heading: 'New Event at Brooklin Pub!',
+        preheader: `${eventMeta.label}: ${event.title} — ${eventDate} at ${eventTime}`,
+        heading: eventMeta.heading,
         title: event.title,
         description: event.description,
-        date: eventDate,
+        date: `${eventDate} at ${eventTime}`,
         imageUrl,
-        ctaText: 'View Event Details',
+        ctaText: eventMeta.ctaText,
         ctaUrl: eventUrl,
         unsubscribeUrl,
       });
 
       this.sendMail(
         subscriber.email,
-        `🎉 New Event: ${event.title} — ${eventDate}`,
+        `${eventMeta.emoji} ${eventMeta.label}: ${event.title} — ${eventDate}`,
         html,
       ).catch((err) =>
         this.logger.error(
@@ -249,18 +263,24 @@ export class NewsletterService {
     }
 
     this.logger.log(
-      `Event notification queued for ${subscribers.length} subscribers`,
+      `${eventMeta.label} notification queued for ${subscribers.length} subscribers`,
     );
   }
 
   /**
-   * Send newsletter email to all active subscribers about a new special
+   * Send newsletter email to all active subscribers about a new special.
+   * Message is specific to the special type and day-of-week for daily specials.
    */
   async notifyNewSpecial(special: {
     id: string;
     title: string;
     description: string;
     type: string;
+    dayOfWeek?: string | null;
+    specialCategory?: string | null;
+    displayStartDate?: Date | null;
+    specialStartDate?: Date | null;
+    specialEndDate?: Date | null;
     imageUrls?: string[];
   }): Promise<void> {
     const subscribers = await this.findActive();
@@ -269,16 +289,28 @@ export class NewsletterService {
       return;
     }
 
-    const specialTypeLabels: Record<string, string> = {
-      daily: 'Daily Special',
-      game_time: 'Game Time Special',
-      day_time: 'Day Time Special',
-      chef: "Chef's Special",
-      seasonal: 'Seasonal Special',
-    };
+    // Build type-specific messaging
+    const specialMeta = this.getSpecialTypeMeta(
+      special.type,
+      special.dayOfWeek ?? null,
+      special.specialCategory ?? null,
+    );
 
-    const typeLabel = specialTypeLabels[special.type] || 'New Special';
-    const specialUrl = `${this.frontendUrl}/special/${special.type === 'chef' ? 'chef' : special.type === 'daily' ? 'daily' : 'other'}`;
+    // For seasonal specials, include validity dates
+    let dateInfo: string | undefined;
+    if (special.type === 'seasonal' && special.specialStartDate) {
+      const fmt = (d: Date) =>
+        new Date(d).toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          timeZone: 'America/Toronto',
+        });
+      dateInfo = special.specialEndDate
+        ? `${fmt(special.specialStartDate)} — ${fmt(special.specialEndDate)}`
+        : `Starting ${fmt(special.specialStartDate)}`;
+    }
+
+    const specialUrl = `${this.frontendUrl}/specials`;
     const imageUrl =
       special.imageUrls && special.imageUrls.length > 0
         ? this.getFullImageUrl(special.imageUrls[0])
@@ -288,19 +320,20 @@ export class NewsletterService {
       const unsubscribeUrl = `${this.frontendUrl}/unsubscribe?token=${subscriber.unsubscribeToken}`;
 
       const html = this.buildEmailTemplate({
-        preheader: `${typeLabel}: ${special.title}`,
-        heading: `New ${typeLabel} at Brooklin Pub!`,
+        preheader: `${specialMeta.label}: ${special.title}`,
+        heading: specialMeta.heading,
         title: special.title,
         description: special.description,
+        date: dateInfo,
         imageUrl,
-        ctaText: 'View Special',
+        ctaText: specialMeta.ctaText,
         ctaUrl: specialUrl,
         unsubscribeUrl,
       });
 
       this.sendMail(
         subscriber.email,
-        `⭐ ${typeLabel}: ${special.title}`,
+        `${specialMeta.emoji} ${specialMeta.label}: ${special.title}`,
         html,
       ).catch((err) =>
         this.logger.error(
@@ -311,7 +344,141 @@ export class NewsletterService {
     }
 
     this.logger.log(
-      `Special notification queued for ${subscribers.length} subscribers`,
+      `${specialMeta.label} notification queued for ${subscribers.length} subscribers`,
+    );
+  }
+
+  // ─── Type-Specific Messaging ───────────────────────────────────
+
+  private getEventTypeMeta(eventType: string): {
+    label: string;
+    heading: string;
+    emoji: string;
+    ctaText: string;
+  } {
+    const meta: Record<
+      string,
+      { label: string; heading: string; emoji: string; ctaText: string }
+    > = {
+      live_music: {
+        label: 'Live Music',
+        heading: 'Live Music Night at Brooklin Pub!',
+        emoji: '🎵',
+        ctaText: 'See the Lineup',
+      },
+      sports_viewing: {
+        label: 'Sports Viewing',
+        heading: 'Game Day at Brooklin Pub!',
+        emoji: '🏆',
+        ctaText: 'Join the Watch Party',
+      },
+      trivia_night: {
+        label: 'Trivia Night',
+        heading: 'Trivia Night at Brooklin Pub!',
+        emoji: '🧠',
+        ctaText: 'Gather Your Team',
+      },
+      karaoke: {
+        label: 'Karaoke Night',
+        heading: 'Karaoke Night at Brooklin Pub!',
+        emoji: '🎤',
+        ctaText: 'Warm Up Your Vocals',
+      },
+      private_party: {
+        label: 'Special Party',
+        heading: 'Special Party at Brooklin Pub!',
+        emoji: '🥂',
+        ctaText: 'View Event Details',
+      },
+      special_event: {
+        label: 'Special Event',
+        heading: 'Something Special at Brooklin Pub!',
+        emoji: '🎉',
+        ctaText: 'View Event Details',
+      },
+    };
+
+    return (
+      meta[eventType] || {
+        label: 'New Event',
+        heading: 'New Event at Brooklin Pub!',
+        emoji: '🎉',
+        ctaText: 'View Event Details',
+      }
+    );
+  }
+
+  private getSpecialTypeMeta(
+    specialType: string,
+    dayOfWeek: string | null,
+    specialCategory: string | null,
+  ): {
+    label: string;
+    heading: string;
+    emoji: string;
+    ctaText: string;
+  } {
+    // Capitalize day name
+    const dayName = dayOfWeek
+      ? dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1)
+      : null;
+    const isLateNight = specialCategory === 'late_night';
+
+    const meta: Record<
+      string,
+      { label: string; heading: string; emoji: string; ctaText: string }
+    > = {
+      daily: {
+        label: dayName
+          ? isLateNight
+            ? `${dayName} Late Night Special`
+            : `${dayName} Special`
+          : isLateNight
+            ? 'Late Night Special'
+            : 'Daily Special',
+        heading: dayName
+          ? isLateNight
+            ? `${dayName} Late Night Special at Brooklin Pub!`
+            : `${dayName} Special at Brooklin Pub!`
+          : isLateNight
+            ? 'Late Night Special at Brooklin Pub!'
+            : 'New Daily Special at Brooklin Pub!',
+        emoji: isLateNight ? '🌙' : '📅',
+        ctaText: "View Today's Special",
+      },
+      game_time: {
+        label: 'Game Time Special',
+        heading: 'Game Time Special at Brooklin Pub!',
+        emoji: '🏈',
+        ctaText: 'View Game Time Deal',
+      },
+      day_time: {
+        label: 'Day Time Special',
+        heading: 'Day Time Special at Brooklin Pub!',
+        emoji: '☀️',
+        ctaText: 'View Day Time Deal',
+      },
+      chef: {
+        label: "Chef's Special",
+        heading: "New Chef's Special at Brooklin Pub!",
+        emoji: '👨‍🍳',
+        ctaText: "See the Chef's Pick",
+      },
+      seasonal: {
+        label: 'Seasonal Special',
+        heading: 'New Seasonal Special at Brooklin Pub!',
+        emoji: '🍂',
+        ctaText: 'View Seasonal Offer',
+      },
+    };
+
+    return (
+      meta[specialType] || {
+        label: 'New Special',
+        heading: 'New Special at Brooklin Pub!',
+        emoji: '⭐',
+        ctaText: 'View Special',
+      }
     );
   }
 

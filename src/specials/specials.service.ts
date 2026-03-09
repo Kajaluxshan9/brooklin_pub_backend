@@ -6,6 +6,8 @@ import { CreateSpecialDto } from './dto/create-special.dto';
 import { UpdateSpecialDto } from './dto/update-special.dto';
 import { UploadService } from '../upload/upload.service';
 import { NewsletterService } from '../newsletter/newsletter.service';
+import { NotificationSchedulerService } from '../notifications/notification-scheduler.service';
+import { NotificationType } from '../entities/scheduled-notification.entity';
 
 @Injectable()
 export class SpecialsService {
@@ -15,6 +17,7 @@ export class SpecialsService {
     private specialRepository: Repository<Special>,
     private uploadService: UploadService,
     private newsletterService: NewsletterService,
+    private notificationScheduler: NotificationSchedulerService,
   ) {}
 
   async findAll(): Promise<Special[]> {
@@ -44,11 +47,22 @@ export class SpecialsService {
     const special = this.specialRepository.create(createSpecialDto);
     const savedSpecial = await this.specialRepository.save(special);
 
-    // Notify subscribers about the new special (non-blocking)
+    // Notify subscribers — schedule for displayStartDate or send immediately
     if (savedSpecial.isActive) {
-      this.newsletterService.notifyNewSpecial(savedSpecial).catch((err) =>
-        this.logger.error('Failed to send special newsletter', err),
-      );
+      const sendNow =
+        await this.notificationScheduler.scheduleOrSendImmediately(
+          NotificationType.SPECIAL,
+          savedSpecial.id,
+          savedSpecial.displayStartDate,
+        );
+
+      if (sendNow) {
+        this.newsletterService
+          .notifyNewSpecial(savedSpecial)
+          .catch((err) =>
+            this.logger.error('Failed to send special newsletter', err),
+          );
+      }
     }
 
     return savedSpecial;
@@ -65,13 +79,22 @@ export class SpecialsService {
   async remove(id: string): Promise<void> {
     const special = await this.findById(id);
 
+    // Cancel any pending scheduled notifications
+    await this.notificationScheduler.cancelPendingNotifications(
+      NotificationType.SPECIAL,
+      id,
+    );
+
     // Delete images from S3 if they exist
     if (special.imageUrls && special.imageUrls.length > 0) {
       for (const imageUrl of special.imageUrls) {
         try {
           await this.uploadService.deleteFile(imageUrl);
         } catch (error) {
-          this.logger.error(`Failed to delete image ${imageUrl}:`, error as any);
+          this.logger.error(
+            `Failed to delete image ${imageUrl}:`,
+            error as any,
+          );
         }
       }
     }

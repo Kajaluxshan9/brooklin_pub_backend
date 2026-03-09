@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -16,6 +17,7 @@ import { MeasurementModule } from './measurements/measurement.module';
 import { StoriesModule } from './stories/stories.module';
 import { ContactModule } from './contact/contact.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { User } from './entities/user.entity';
 import { MenuItem } from './entities/menu-item.entity';
 import { MenuCategory } from './entities/menu-category.entity';
@@ -29,12 +31,14 @@ import { Todo } from './entities/todo.entity';
 import { Story } from './entities/story.entity';
 import { StoryCategory } from './entities/story-category.entity';
 import { Subscriber } from './entities/subscriber.entity';
+import { ScheduledNotification } from './entities/scheduled-notification.entity';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
@@ -59,6 +63,7 @@ import { Subscriber } from './entities/subscriber.entity';
             Story,
             StoryCategory,
             Subscriber,
+            ScheduledNotification,
           ],
           synchronize:
             configService.getOrThrow<string>('NODE_ENV') !== 'production',
@@ -82,6 +87,7 @@ import { Subscriber } from './entities/subscriber.entity';
     StoriesModule,
     ContactModule,
     NewsletterModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -12,6 +12,7 @@ import { Event } from './entities/event.entity';
 import { OpeningHours } from './entities/opening-hours.entity';
 import { Todo } from './entities/todo.entity';
 import { Subscriber } from './entities/subscriber.entity';
+import { ScheduledNotification } from './entities/scheduled-notification.entity';
 
 config();
 
@@ -51,6 +52,7 @@ export const AppDataSource = new DataSource({
     OpeningHours,
     Todo,
     Subscriber,
+    ScheduledNotification,
     MenuItemMeasurement,
     'src/entities/**/*.entity.ts',
   ],
