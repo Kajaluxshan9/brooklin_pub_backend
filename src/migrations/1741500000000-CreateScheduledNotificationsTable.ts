@@ -6,14 +6,14 @@ export class CreateScheduledNotificationsTable1741500000000 implements Migration
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Create enum types
     await queryRunner.query(`
-      CREATE TYPE "scheduled_notifications_type_enum" AS ENUM ('special', 'event')
+      DO $$ BEGIN CREATE TYPE "scheduled_notifications_type_enum" AS ENUM ('special', 'event'); EXCEPTION WHEN duplicate_object THEN null; END $$
     `);
     await queryRunner.query(`
-      CREATE TYPE "scheduled_notifications_status_enum" AS ENUM ('pending', 'sent', 'failed', 'cancelled')
+      DO $$ BEGIN CREATE TYPE "scheduled_notifications_status_enum" AS ENUM ('pending', 'sent', 'failed', 'cancelled'); EXCEPTION WHEN duplicate_object THEN null; END $$
     `);
 
     await queryRunner.query(`
-      CREATE TABLE "scheduled_notifications" (
+      CREATE TABLE IF NOT EXISTS "scheduled_notifications" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "type" "scheduled_notifications_type_enum" NOT NULL,
         "referenceId" uuid NOT NULL,
@@ -27,14 +27,14 @@ export class CreateScheduledNotificationsTable1741500000000 implements Migration
 
     // Index for the cron job: find pending notifications that are due
     await queryRunner.query(`
-      CREATE INDEX "IDX_scheduled_notifications_pending_due"
+      CREATE INDEX IF NOT EXISTS "IDX_scheduled_notifications_pending_due"
       ON "scheduled_notifications" ("scheduledFor")
       WHERE "status" = 'pending'
     `);
 
     // Index for cancellation lookups by type + referenceId
     await queryRunner.query(`
-      CREATE INDEX "IDX_scheduled_notifications_type_ref"
+      CREATE INDEX IF NOT EXISTS "IDX_scheduled_notifications_type_ref"
       ON "scheduled_notifications" ("type", "referenceId")
       WHERE "status" = 'pending'
     `);

@@ -5,7 +5,7 @@ export class CreateSubscribersTable1741392000000 implements MigrationInterface {
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
-      CREATE TABLE "subscribers" (
+      CREATE TABLE IF NOT EXISTS "subscribers" (
         "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
         "email" character varying NOT NULL,
         "isActive" boolean NOT NULL DEFAULT true,

@@ -18,6 +18,7 @@ import { StoriesModule } from './stories/stories.module';
 import { ContactModule } from './contact/contact.module';
 import { NewsletterModule } from './newsletter/newsletter.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 import { User } from './entities/user.entity';
 import { MenuItem } from './entities/menu-item.entity';
 import { MenuCategory } from './entities/menu-category.entity';
@@ -32,6 +33,7 @@ import { Story } from './entities/story.entity';
 import { StoryCategory } from './entities/story-category.entity';
 import { Subscriber } from './entities/subscriber.entity';
 import { ScheduledNotification } from './entities/scheduled-notification.entity';
+import { Announcement } from './entities/announcement.entity';
 
 @Module({
   imports: [
@@ -64,6 +66,7 @@ import { ScheduledNotification } from './entities/scheduled-notification.entity'
             StoryCategory,
             Subscriber,
             ScheduledNotification,
+            Announcement,
           ],
           synchronize:
             configService.getOrThrow<string>('NODE_ENV') !== 'production',
@@ -88,6 +91,7 @@ import { ScheduledNotification } from './entities/scheduled-notification.entity'
     ContactModule,
     NewsletterModule,
     NotificationsModule,
+    AnnouncementsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
