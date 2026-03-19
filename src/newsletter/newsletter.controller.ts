@@ -2,11 +2,14 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
   Delete,
   Param,
   Body,
   Query,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { NewsletterService } from './newsletter.service';
 import { SubscribeDto } from './dto';
@@ -46,6 +49,20 @@ export class NewsletterController {
   @UseGuards(JwtAuthGuard)
   getStats() {
     return this.newsletterService.getStats();
+  }
+
+  @Post('subscribers/:id/send-promo')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  sendPromoCode(@Param('id') id: string) {
+    return this.newsletterService.sendPromoCode(id);
+  }
+
+  @Patch('subscribers/:id/claim-promo')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  markPromoClaimed(@Param('id') id: string) {
+    return this.newsletterService.markPromoClaimed(id);
   }
 
   @Delete('subscribers/:id')

@@ -3,6 +3,7 @@ import {
   Logger,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -163,16 +164,118 @@ export class NewsletterService {
     total: number;
     active: number;
     unsubscribed: number;
+    promoSent: number;
+    promoPending: number;
   }> {
     const total = await this.subscriberRepository.count();
     const active = await this.subscriberRepository.count({
       where: { isActive: true },
     });
+    const promoSent = await this.subscriberRepository.count({
+      where: { promoCodeSent: true },
+    });
     return {
       total,
       active,
       unsubscribed: total - active,
+      promoSent,
+      promoPending: active - promoSent > 0 ? active - promoSent : 0,
     };
+  }
+
+  /**
+   * Send a one-time promo code to a specific subscriber (admin only).
+   *
+   * Guards:
+   *  - Subscriber must exist
+   *  - Subscriber must be active (inactive users cannot receive promo)
+   *  - Promo must not have been sent before (persists across unsubscribe/re-subscribe cycles)
+   *
+   * Concurrency: uses a pessimistic write-lock inside a transaction so that
+   * two simultaneous admin requests cannot both pass the promoCodeSent guard
+   * and generate two codes for the same subscriber.
+   */
+  async sendPromoCode(id: string): Promise<{ message: string; promoCode: string }> {
+    let savedEmail = '';
+    let savedCode = '';
+
+    await this.subscriberRepository.manager.transaction(async (manager) => {
+      const subscriber = await manager.findOne(Subscriber, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!subscriber) {
+        throw new NotFoundException(`Subscriber with ID ${id} not found`);
+      }
+
+      if (!subscriber.isActive) {
+        throw new BadRequestException(
+          'Promo codes can only be sent to active subscribers',
+        );
+      }
+
+      if (subscriber.promoCodeSent) {
+        throw new BadRequestException(
+          'Promo code has already been sent to this subscriber',
+        );
+      }
+
+      const promoCode = this.generatePromoCode();
+      subscriber.promoCode = promoCode;
+      subscriber.promoCodeSent = true;
+      subscriber.promoSentAt = new Date();
+
+      await manager.save(Subscriber, subscriber);
+
+      savedEmail = subscriber.email;
+      savedCode = promoCode;
+    });
+
+    // Send email outside transaction (non-blocking)
+    const subscriberForEmail = await this.subscriberRepository.findOne({
+      where: { id },
+    });
+    if (subscriberForEmail) {
+      this.sendPromoEmail(subscriberForEmail).catch((err) =>
+        this.logger.error(`Failed to send promo email to ${savedEmail}`, err),
+      );
+    }
+
+    this.logger.log(`Promo code ${savedCode} queued for ${savedEmail}`);
+
+    return { message: 'Promo code sent successfully', promoCode: savedCode };
+  }
+
+  /**
+   * Mark a subscriber's promo code as claimed at the pub (admin only).
+   * Can only be called after the promo has been sent.
+   */
+  async markPromoClaimed(id: string): Promise<{ message: string }> {
+    const subscriber = await this.subscriberRepository.findOne({ where: { id } });
+
+    if (!subscriber) {
+      throw new NotFoundException(`Subscriber with ID ${id} not found`);
+    }
+
+    if (!subscriber.promoCodeSent) {
+      throw new BadRequestException(
+        'No promo code has been sent to this subscriber yet',
+      );
+    }
+
+    if (subscriber.promoClaimed) {
+      throw new BadRequestException('Promo has already been marked as claimed');
+    }
+
+    subscriber.promoClaimed = true;
+    subscriber.promoClaimedAt = new Date();
+
+    await this.subscriberRepository.save(subscriber);
+
+    this.logger.log(`Promo claimed for ${subscriber.email}`);
+
+    return { message: 'Promo code marked as claimed' };
   }
 
   /**
@@ -484,6 +587,196 @@ export class NewsletterService {
 
   // ─── Private Helpers ────────────────────────────────────────────
 
+  /**
+   * Generate a cryptographically secure 8-character promo code (A-Z, 0-9).
+   */
+  private generatePromoCode(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const bytes = crypto.randomBytes(8);
+    return Array.from(bytes)
+      .map((b) => chars[b % chars.length])
+      .join('');
+  }
+
+  private async sendPromoEmail(subscriber: Subscriber): Promise<void> {
+    const unsubscribeUrl = `${this.frontendUrl}/unsubscribe?token=${subscriber.unsubscribeToken}`;
+
+    const html = this.buildPromoEmailTemplate({
+      promoCode: subscriber.promoCode!,
+      unsubscribeUrl,
+    });
+
+    await this.sendMail(
+      subscriber.email,
+      'Your Complimentary Appetizer Promo Code — Brooklin Pub 🍺',
+      html,
+    );
+  }
+
+  private buildPromoEmailTemplate(opts: {
+    promoCode: string;
+    unsubscribeUrl: string;
+  }): string {
+    return `<!DOCTYPE html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
+  <title>Your Complimentary Appetizer Promo Code</title>
+  <style>
+    body, table, td { margin: 0; padding: 0; }
+    body { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table { border-spacing: 0; border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { border: 0; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; max-width: 100%; }
+    a { color: #C87941; text-decoration: none; }
+    @media only screen and (max-width: 620px) {
+      .email-container { width: 100% !important; }
+      .content-pad { padding-left: 20px !important; padding-right: 20px !important; }
+      .hero-text { font-size: 24px !important; }
+      .promo-code { font-size: 28px !important; letter-spacing: 8px !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #EDE0D0; font-family: 'Segoe UI', -apple-system, Helvetica, Arial, sans-serif;">
+  <div style="display: none; max-height: 0; overflow: hidden; font-size: 1px; line-height: 1px; color: #EDE0D0;">Your complimentary appetizer promo code from Brooklin Pub&#847; &#847; &#847;</div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #EDE0D0;">
+    <tr>
+      <td align="center" style="padding: 40px 16px 48px;">
+        <table role="presentation" class="email-container" width="560" cellpadding="0" cellspacing="0" style="max-width: 560px; width: 100%; border-radius: 16px; overflow: hidden; box-shadow: 0 2px 24px rgba(42,21,9,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td align="center" style="background-color: #FFFCF8; padding: 36px 32px 28px; border-bottom: 1px solid rgba(42,21,9,0.06);">
+              <img src="${this.logoUrl}" alt="Brooklin Pub" width="48" style="width: 48px; height: auto; margin-bottom: 12px;" />
+              <p style="margin: 0; font-size: 14px; font-weight: 700; color: #2A1509; letter-spacing: 3px; text-transform: uppercase; font-family: Georgia, 'Times New Roman', serif;">BROOKLIN PUB</p>
+              <p style="margin: 6px 0 0; font-size: 11px; color: #C87941; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 500;">&#9733;&ensp;Est. 2014&ensp;&#9733;</p>
+            </td>
+          </tr>
+
+          <!-- Gold accent line -->
+          <tr>
+            <td style="height: 3px; background: linear-gradient(90deg, #EDE0D0, #D9A756, #C87941, #D9A756, #EDE0D0);"></td>
+          </tr>
+
+          <!-- Hero heading -->
+          <tr>
+            <td class="content-pad" style="background-color: #FFFCF8; padding: 36px 40px 0;">
+              <h1 class="hero-text" style="margin: 0; font-size: 26px; font-weight: 700; color: #2A1509; font-family: Georgia, 'Times New Roman', serif; line-height: 1.3;">A Complimentary Appetizer, Just for You!</h1>
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top: 14px;">
+                <tr>
+                  <td style="width: 44px; height: 2px; background-color: #D9A756; border-radius: 2px;"></td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body content -->
+          <tr>
+            <td class="content-pad" style="background-color: #FFFCF8; padding: 24px 40px 0;">
+              <p style="margin: 0; font-size: 15px; line-height: 1.75; color: #5C4033;">
+                You are eligible for a complimentary appetizer at Brooklin Pub.<br />
+                Visit us and show your promo code to enjoy your one-time offer.<br />
+                Thank you for subscribing to our newsletter.<br />
+                You may also randomly receive special gifts from us in the future.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Promo Code Box -->
+          <tr>
+            <td class="content-pad" align="center" style="background-color: #FFFCF8; padding: 32px 40px 12px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%;">
+                <tr>
+                  <td align="center" style="background-color: #FDF3E7; border: 2px dashed #D9A756; border-radius: 14px; padding: 28px 20px;">
+                    <p style="margin: 0 0 10px; font-size: 12px; font-weight: 700; color: #8B6914; letter-spacing: 2px; text-transform: uppercase;">Your Promo Code</p>
+                    <p class="promo-code" style="margin: 0; font-size: 36px; font-weight: 700; color: #2A1509; letter-spacing: 12px; font-family: 'Courier New', Courier, monospace;">${opts.promoCode}</p>
+                    <p style="margin: 12px 0 0; font-size: 12px; color: rgba(42,21,9,0.45);">One-time use &mdash; Show this code at the pub</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA Button -->
+          <tr>
+            <td class="content-pad" align="center" style="background-color: #FFFCF8; padding: 24px 40px 40px;">
+              <table role="presentation" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="border-radius: 10px; background-color: #2A1509;" align="center">
+                    <!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${this.frontendUrl}" style="height:48px;v-text-anchor:middle;width:220px;" arcsize="21%" fillcolor="#2A1509" stroke="f"><v:textbox inset="0,0,0,0"><center style="font-size:15px;font-weight:700;color:#F5EFE6;font-family:Arial,sans-serif;">Visit Brooklin Pub</center></v:textbox></v:roundrect><![endif]-->
+                    <!--[if !mso]><!-->
+                    <a href="${this.frontendUrl}" style="display: inline-block; padding: 14px 40px; background-color: #2A1509; color: #F5EFE6; font-size: 15px; font-weight: 700; border-radius: 10px; text-decoration: none; letter-spacing: 0.3px; font-family: 'Segoe UI', Arial, sans-serif; text-align: center;">Visit Brooklin Pub&nbsp;&rarr;</a>
+                    <!--<![endif]-->
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #F5EDE1; padding: 28px 36px; border-top: 1px solid rgba(42,21,9,0.06);">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding-bottom: 18px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding: 0 6px;">
+                          <a href="https://www.facebook.com/brooklinpub" style="display: inline-block; text-decoration: none;" title="Facebook">
+                            <img src="${this.backendPublicUrl}/uploads/assets/icon-facebook.svg" width="30" height="30" alt="Facebook" style="display: block; border: 0;" />
+                          </a>
+                        </td>
+                        <td style="padding: 0 6px;">
+                          <a href="https://www.instagram.com/brooklinpubngrill/" style="display: inline-block; text-decoration: none;" title="Instagram">
+                            <img src="${this.backendPublicUrl}/uploads/assets/icon-instagram.svg" width="30" height="30" alt="Instagram" style="display: block; border: 0;" />
+                          </a>
+                        </td>
+                        <td style="padding: 0 6px;">
+                          <a href="https://www.tiktok.com/@brooklinpubngrill" style="display: inline-block; text-decoration: none;" title="TikTok">
+                            <img src="${this.backendPublicUrl}/uploads/assets/icon-tiktok.svg" width="30" height="30" alt="TikTok" style="display: block; border: 0;" />
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="height: 1px; background-color: rgba(42,21,9,0.08);"></td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding: 18px 0 14px;">
+                    <p style="margin: 0 0 4px; font-size: 12px; font-weight: 600; color: #6A3A1E; letter-spacing: 0.3px;">Brooklin Pub &amp; Grill</p>
+                    <p style="margin: 0 0 2px; font-size: 12px; color: rgba(42,21,9,0.45);">15 Baldwin St, Whitby, ON L1M 1A2</p>
+                    <p style="margin: 0; font-size: 12px; color: rgba(42,21,9,0.45);">
+                      <a href="tel:+19054253055" style="color: rgba(42,21,9,0.45); text-decoration: none;">(905) 425-3055</a>&ensp;&#183;&ensp;
+                      <a href="mailto:brooklinpub@gmail.com" style="color: rgba(42,21,9,0.45); text-decoration: none;">brooklinpub@gmail.com</a>
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding-top: 2px;">
+                    <p style="margin: 0; font-size: 11px; line-height: 1.6; color: rgba(42,21,9,0.3);">
+                      You received this because you subscribed at brooklinpub.com<br />
+                      <a href="${opts.unsubscribeUrl}" style="color: #C87941; text-decoration: underline; font-weight: 500;">Unsubscribe</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+  }
+
   private getFullImageUrl(url: string): string {
     if (!url) return '';
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
@@ -658,13 +951,19 @@ export class NewsletterService {
                     <table role="presentation" cellpadding="0" cellspacing="0">
                       <tr>
                         <td style="padding: 0 6px;">
-                          <a href="https://www.facebook.com/brooklinpub" style="display: inline-block; width: 30px; height: 30px; border-radius: 8px; background-color: rgba(42,21,9,0.06); text-align: center; line-height: 30px; font-size: 13px; color: #8B6914; text-decoration: none;" title="Facebook">f</a>
+                          <a href="https://www.facebook.com/brooklinpub" style="display: inline-block; text-decoration: none;" title="Facebook">
+                            <img src="${this.backendPublicUrl}/uploads/assets/icon-facebook.svg" width="30" height="30" alt="Facebook" style="display: block; border: 0;" />
+                          </a>
                         </td>
                         <td style="padding: 0 6px;">
-                          <a href="https://www.instagram.com/brooklinpubngrill/" style="display: inline-block; width: 30px; height: 30px; border-radius: 8px; background-color: rgba(42,21,9,0.06); text-align: center; line-height: 30px; font-size: 13px; color: #8B6914; text-decoration: none;" title="Instagram">&#9679;</a>
+                          <a href="https://www.instagram.com/brooklinpubngrill/" style="display: inline-block; text-decoration: none;" title="Instagram">
+                            <img src="${this.backendPublicUrl}/uploads/assets/icon-instagram.svg" width="30" height="30" alt="Instagram" style="display: block; border: 0;" />
+                          </a>
                         </td>
                         <td style="padding: 0 6px;">
-                          <a href="https://www.tiktok.com/@brooklinpubngrill" style="display: inline-block; width: 30px; height: 30px; border-radius: 8px; background-color: rgba(42,21,9,0.06); text-align: center; line-height: 30px; font-size: 13px; color: #8B6914; text-decoration: none;" title="TikTok">&#9835;</a>
+                          <a href="https://www.tiktok.com/@brooklinpubngrill" style="display: inline-block; text-decoration: none;" title="TikTok">
+                            <img src="${this.backendPublicUrl}/uploads/assets/icon-tiktok.svg" width="30" height="30" alt="TikTok" style="display: block; border: 0;" />
+                          </a>
                         </td>
                       </tr>
                     </table>
