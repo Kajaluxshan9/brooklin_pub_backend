@@ -21,7 +21,7 @@ export class GetSubscribersQueryDto {
   @IsInt()
   @Min(1)
   @Max(100)
-  limit?: number = 20;
+  limit?: number = 10;
 
   @IsOptional()
   @IsIn(['all', 'active', 'unsubscribed', 'promo_pending', 'promo_sent', 'promo_claimed'])
