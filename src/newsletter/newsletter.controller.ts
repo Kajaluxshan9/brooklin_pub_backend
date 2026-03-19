@@ -12,7 +12,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { NewsletterService } from './newsletter.service';
-import { SubscribeDto } from './dto';
+import { SubscribeDto, GetSubscribersQueryDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('newsletter')
@@ -35,8 +35,8 @@ export class NewsletterController {
 
   @Get('subscribers')
   @UseGuards(JwtAuthGuard)
-  findAll() {
-    return this.newsletterService.findAll();
+  findAll(@Query() query: GetSubscribersQueryDto) {
+    return this.newsletterService.findAll(query);
   }
 
   @Get('subscribers/active')

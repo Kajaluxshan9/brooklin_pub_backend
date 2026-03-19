@@ -10,8 +10,9 @@ import { Repository } from 'typeorm';
 import * as nodemailer from 'nodemailer';
 import * as crypto from 'crypto';
 import { Subscriber } from '../entities/subscriber.entity';
-import { SubscribeDto } from './dto';
+import { SubscribeDto, GetSubscribersQueryDto } from './dto';
 import { getRequiredEnv, getOptionalEnv } from '../config/env.validation';
+import { ILike, IsNull, Not } from 'typeorm';
 
 @Injectable()
 export class NewsletterService {
@@ -139,12 +140,63 @@ export class NewsletterService {
   }
 
   /**
-   * Get all subscribers (admin only)
+   * Get paginated + filtered subscribers (admin only)
    */
-  async findAll(): Promise<Subscriber[]> {
-    return this.subscriberRepository.find({
+  async findAll(query: GetSubscribersQueryDto): Promise<{
+    data: Subscriber[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const status = query.status ?? 'all';
+    const search = query.search?.trim();
+
+    // Build where clause
+    const where: Record<string, unknown>[] = [];
+
+    const buildStatusCondition = (): Record<string, unknown> => {
+      switch (status) {
+        case 'active':
+          return { isActive: true };
+        case 'unsubscribed':
+          return { isActive: false };
+        case 'promo_pending':
+          return { isActive: true, promoCodeSent: false };
+        case 'promo_sent':
+          return { promoCodeSent: true, promoClaimed: false };
+        case 'promo_claimed':
+          return { promoClaimed: true };
+        default:
+          return {};
+      }
+    };
+
+    const statusCondition = buildStatusCondition();
+
+    if (search) {
+      // When searching with a filter, combine both conditions in the same object
+      where.push({ ...statusCondition, email: ILike(`%${search}%`) });
+    } else {
+      where.push(statusCondition);
+    }
+
+    const [data, total] = await this.subscriberRepository.findAndCount({
+      where,
       order: { subscribedAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   /**
