@@ -131,8 +131,7 @@ build/
 *.sqlite
 *.sqlite3
 
-# Uploads
-uploads/
+
 
 # SSL certificates
 *.pem
@@ -227,7 +226,10 @@ public/
 .storybook-out/
 tmp/
 temp/
-uploads/
+uploads/events
+uploads/menu
+uploads/specials
+uploads/stories
 *.pem
 *.key
 *.crt
