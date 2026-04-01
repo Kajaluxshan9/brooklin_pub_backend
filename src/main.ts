@@ -25,7 +25,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger:
       getRequiredEnv('NODE_ENV') === 'production'
-        ? ['error', 'warn', 'log']
+        ? ['error', 'warn']
         : ['error', 'warn', 'log', 'debug', 'verbose'],
   });
 

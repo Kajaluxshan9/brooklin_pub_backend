@@ -7,11 +7,15 @@ import {
   OneToMany,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { MenuItem } from './menu-item.entity';
 import { PrimaryCategory } from './primary-category.entity';
 
 @Entity('menu_categories')
+@Index(['primaryCategoryId'])
+@Index(['sortOrder'])
+@Index(['isActive'])
 export class MenuCategory {
   @PrimaryGeneratedColumn('uuid')
   id: string;

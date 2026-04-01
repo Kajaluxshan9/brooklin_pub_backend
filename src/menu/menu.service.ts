@@ -30,10 +30,12 @@ export class MenuService {
 
   // Primary Category methods
   async findAllPrimaryCategories(): Promise<PrimaryCategory[]> {
-    return this.primaryCategoryRepository.find({
-      order: { sortOrder: 'ASC' },
-      relations: ['categories'],
-    });
+    return this.primaryCategoryRepository
+      .createQueryBuilder('pc')
+      .leftJoinAndSelect('pc.categories', 'categories')
+      .orderBy('pc.sortOrder', 'ASC')
+      .addOrderBy('categories.sortOrder', 'ASC')
+      .getMany();
   }
 
   async findPrimaryCategoryById(id: string): Promise<PrimaryCategory> {
@@ -108,10 +110,13 @@ export class MenuService {
 
   // Category methods
   async findAllCategories(): Promise<MenuCategory[]> {
-    return this.categoryRepository.find({
-      order: { sortOrder: 'ASC' },
-      relations: ['menuItems', 'primaryCategory'],
-    });
+    return this.categoryRepository
+      .createQueryBuilder('cat')
+      .leftJoinAndSelect('cat.menuItems', 'menuItems')
+      .leftJoinAndSelect('cat.primaryCategory', 'primaryCategory')
+      .orderBy('cat.sortOrder', 'ASC')
+      .addOrderBy('menuItems.sortOrder', 'ASC')
+      .getMany();
   }
 
   async findCategoryById(id: string): Promise<MenuCategory> {
@@ -151,28 +156,27 @@ export class MenuService {
     const category = await this.findCategoryById(categoryId);
     const oldOrder = category.sortOrder;
 
-    // Get all categories
-    const categories = await this.categoryRepository.find({
-      order: { sortOrder: 'ASC' },
-    });
-
-    // Update sort orders
+    // Use bulk SQL update instead of loading all categories and saving one by one
     if (newOrder > oldOrder) {
-      // Moving down
-      for (const cat of categories) {
-        if (cat.sortOrder > oldOrder && cat.sortOrder <= newOrder) {
-          cat.sortOrder--;
-          await this.categoryRepository.save(cat);
-        }
-      }
+      await this.categoryRepository
+        .createQueryBuilder()
+        .update(MenuCategory)
+        .set({ sortOrder: () => '"sortOrder" - 1' })
+        .where('"sortOrder" > :oldOrder AND "sortOrder" <= :newOrder', {
+          oldOrder,
+          newOrder,
+        })
+        .execute();
     } else if (newOrder < oldOrder) {
-      // Moving up
-      for (const cat of categories) {
-        if (cat.sortOrder >= newOrder && cat.sortOrder < oldOrder) {
-          cat.sortOrder++;
-          await this.categoryRepository.save(cat);
-        }
-      }
+      await this.categoryRepository
+        .createQueryBuilder()
+        .update(MenuCategory)
+        .set({ sortOrder: () => '"sortOrder" + 1' })
+        .where('"sortOrder" >= :newOrder AND "sortOrder" < :oldOrder', {
+          newOrder,
+          oldOrder,
+        })
+        .execute();
     }
 
     category.sortOrder = newOrder;
@@ -221,14 +225,14 @@ export class MenuService {
 
   // Menu Item methods
   async findAllMenuItems(): Promise<MenuItem[]> {
-    return this.menuItemRepository.find({
-      order: { sortOrder: 'ASC' },
-      relations: [
-        'category',
-        'measurements',
-        'measurements.measurementTypeEntity',
-      ],
-    });
+    return this.menuItemRepository
+      .createQueryBuilder('item')
+      .leftJoinAndSelect('item.category', 'category')
+      .leftJoinAndSelect('item.measurements', 'measurements')
+      .leftJoinAndSelect('measurements.measurementTypeEntity', 'measurementType')
+      .orderBy('item.sortOrder', 'ASC')
+      .addOrderBy('measurements.sortOrder', 'ASC')
+      .getMany();
   }
 
   async findMenuItemById(id: string): Promise<MenuItem> {
@@ -329,29 +333,27 @@ export class MenuService {
     const menuItem = await this.findMenuItemById(itemId);
     const oldOrder = menuItem.sortOrder;
 
-    // Get all menu items in the same category
-    const menuItems = await this.menuItemRepository.find({
-      where: { categoryId: menuItem.categoryId },
-      order: { sortOrder: 'ASC' },
-    });
-
-    // Update sort orders
+    // Use bulk SQL update instead of loading all items and saving one by one
     if (newOrder > oldOrder) {
-      // Moving down
-      for (const item of menuItems) {
-        if (item.sortOrder > oldOrder && item.sortOrder <= newOrder) {
-          item.sortOrder--;
-          await this.menuItemRepository.save(item);
-        }
-      }
+      await this.menuItemRepository
+        .createQueryBuilder()
+        .update(MenuItem)
+        .set({ sortOrder: () => '"sortOrder" - 1' })
+        .where(
+          '"categoryId" = :categoryId AND "sortOrder" > :oldOrder AND "sortOrder" <= :newOrder',
+          { categoryId: menuItem.categoryId, oldOrder, newOrder },
+        )
+        .execute();
     } else if (newOrder < oldOrder) {
-      // Moving up
-      for (const item of menuItems) {
-        if (item.sortOrder >= newOrder && item.sortOrder < oldOrder) {
-          item.sortOrder++;
-          await this.menuItemRepository.save(item);
-        }
-      }
+      await this.menuItemRepository
+        .createQueryBuilder()
+        .update(MenuItem)
+        .set({ sortOrder: () => '"sortOrder" + 1' })
+        .where(
+          '"categoryId" = :categoryId AND "sortOrder" >= :newOrder AND "sortOrder" < :oldOrder',
+          { categoryId: menuItem.categoryId, newOrder, oldOrder },
+        )
+        .execute();
     }
 
     menuItem.sortOrder = newOrder;

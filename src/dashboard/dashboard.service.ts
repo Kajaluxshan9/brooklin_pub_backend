@@ -38,42 +38,77 @@ export class DashboardService {
         ? { role: Not('super_admin'), isActive: true }
         : { isActive: true };
 
+    // Batch related counts into single queries to reduce from 18 → 10 queries
     const [
-      menuItemsTotal,
-      menuItemsActive,
+      menuStats,
       menuCategories,
-      usersTotal,
-      usersActive,
+      userStats,
       eventsTotal,
       specialsTotal,
-      todosTotal,
-      todosCompleted,
-      todosPending,
-      todosInProgress,
-      openingHoursTotal,
-      openingHoursActive,
+      todoStats,
+      openingHoursStats,
       recentMenuItems,
       recentSpecials,
       upcomingEvents,
       recentTodos,
       recentUsers,
     ] = await Promise.all([
-      this.menuItemRepository.count(),
-      this.menuItemRepository.count({ where: { isAvailable: true } }),
+      // Single query for menu item total + active count
+      this.menuItemRepository
+        .createQueryBuilder('mi')
+        .select('COUNT(*)', 'total')
+        .addSelect('COUNT(*) FILTER (WHERE mi.isAvailable = true)', 'active')
+        .getRawOne() as Promise<{ total: string; active: string }>,
       this.menuCategoryRepository.find({
         order: { sortOrder: 'ASC' },
         relations: ['menuItems'],
       }),
-      this.userRepository.count({ where: userFilter }),
-      this.userRepository.count({ where: userActiveFilter }),
+      // Single query for user total + active count
+      user.role !== 'super_admin'
+        ? (this.userRepository
+            .createQueryBuilder('u')
+            .select('COUNT(*) FILTER (WHERE u.role != :role)', 'total')
+            .addSelect(
+              'COUNT(*) FILTER (WHERE u.role != :role AND u.isActive = true)',
+              'active',
+            )
+            .setParameter('role', 'super_admin')
+            .getRawOne() as Promise<{ total: string; active: string }>)
+        : (this.userRepository
+            .createQueryBuilder('u')
+            .select('COUNT(*)', 'total')
+            .addSelect('COUNT(*) FILTER (WHERE u.isActive = true)', 'active')
+            .getRawOne() as Promise<{ total: string; active: string }>),
       this.eventRepository.count(),
       this.specialRepository.count(),
-      this.todoRepository.count(),
-      this.todoRepository.count({ where: { status: TodoStatus.COMPLETED } }),
-      this.todoRepository.count({ where: { status: TodoStatus.PENDING } }),
-      this.todoRepository.count({ where: { status: TodoStatus.IN_PROGRESS } }),
-      this.openingHoursRepository.count(),
-      this.openingHoursRepository.count({ where: { isActive: true } }),
+      // Single query for all todo status counts
+      this.todoRepository
+        .createQueryBuilder('t')
+        .select('COUNT(*)', 'total')
+        .addSelect(
+          `COUNT(*) FILTER (WHERE t.status = :completed)`,
+          'completed',
+        )
+        .addSelect(`COUNT(*) FILTER (WHERE t.status = :pending)`, 'pending')
+        .addSelect(
+          `COUNT(*) FILTER (WHERE t.status = :inProgress)`,
+          'inProgress',
+        )
+        .setParameter('completed', TodoStatus.COMPLETED)
+        .setParameter('pending', TodoStatus.PENDING)
+        .setParameter('inProgress', TodoStatus.IN_PROGRESS)
+        .getRawOne() as Promise<{
+        total: string;
+        completed: string;
+        pending: string;
+        inProgress: string;
+      }>,
+      // Single query for opening hours total + active count
+      this.openingHoursRepository
+        .createQueryBuilder('oh')
+        .select('COUNT(*)', 'total')
+        .addSelect('COUNT(*) FILTER (WHERE oh.isActive = true)', 'active')
+        .getRawOne() as Promise<{ total: string; active: string }>,
       this.menuItemRepository.find({
         order: { createdAt: 'DESC' },
         select: ['id', 'name', 'createdAt', 'isAvailable'],
@@ -117,8 +152,8 @@ export class DashboardService {
 
     return {
       menu: {
-        total: menuItemsTotal,
-        active: menuItemsActive,
+        total: parseInt(menuStats.total, 10),
+        active: parseInt(menuStats.active, 10),
         categories: menuCategories.map((category) => ({
           id: category.id,
           name: category.name,
@@ -127,8 +162,8 @@ export class DashboardService {
         })),
       },
       users: {
-        total: usersTotal,
-        active: usersActive,
+        total: parseInt(userStats.total, 10),
+        active: parseInt(userStats.active, 10),
       },
       events: {
         total: eventsTotal,
@@ -139,14 +174,14 @@ export class DashboardService {
         active: recentSpecials.filter((special) => special.isActive).length,
       },
       todos: {
-        total: todosTotal,
-        completed: todosCompleted,
-        pending: todosPending,
-        inProgress: todosInProgress,
+        total: parseInt(todoStats.total, 10),
+        completed: parseInt(todoStats.completed, 10),
+        pending: parseInt(todoStats.pending, 10),
+        inProgress: parseInt(todoStats.inProgress, 10),
       },
       openingHours: {
-        total: openingHoursTotal,
-        active: openingHoursActive,
+        total: parseInt(openingHoursStats.total, 10),
+        active: parseInt(openingHoursStats.active, 10),
       },
       recent: {
         menuItems: recentMenuItems,

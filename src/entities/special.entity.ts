@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 
 export enum SpecialType {
@@ -30,6 +31,9 @@ export enum SpecialCategory {
 }
 
 @Entity('specials')
+@Index(['isActive'])
+@Index(['type'])
+@Index(['dayOfWeek'])
 export class Special {
   @PrimaryGeneratedColumn('uuid')
   id: string;

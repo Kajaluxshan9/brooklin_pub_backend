@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { User } from './user.entity';
 
@@ -24,6 +25,9 @@ export enum TodoStatus {
 }
 
 @Entity('todos')
+@Index(['status'])
+@Index(['priority'])
+@Index(['createdById'])
 export class Todo {
   @PrimaryGeneratedColumn('uuid')
   id: string;

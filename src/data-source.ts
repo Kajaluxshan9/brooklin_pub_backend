@@ -43,6 +43,10 @@ export const AppDataSource = new DataSource({
   username: configService.getOrThrow<string>('DB_USERNAME'),
   password: configService.getOrThrow<string>('DB_PASSWORD'),
   database: configService.getOrThrow<string>('DB_NAME'),
+  extra: {
+    max: 20,
+  },
+  maxQueryExecutionTime: 60000,
   entities: [
     User,
     MenuItem,
@@ -60,7 +64,7 @@ export const AppDataSource = new DataSource({
   ],
   migrations: ['src/migrations/**/*.ts'],
   synchronize: false, // We'll use migrations instead
-  logging: true,
+  logging: process.env.NODE_ENV === 'development',
   migrationsRun: false,
 });
 

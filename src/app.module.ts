@@ -72,6 +72,10 @@ import { Announcement } from './entities/announcement.entity';
             configService.getOrThrow<string>('NODE_ENV') !== 'production',
           logging:
             configService.getOrThrow<string>('NODE_ENV') === 'development',
+          maxQueryExecutionTime: 60000,
+          extra: {
+            max: 20,
+          },
           timezone: 'UTC',
         };
       },

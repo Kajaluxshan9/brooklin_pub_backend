@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
 
 export enum EventType {
@@ -16,6 +17,9 @@ export enum EventType {
 }
 
 @Entity('events')
+@Index(['eventStartDate'])
+@Index(['isActive'])
+@Index(['isActive', 'eventStartDate'])
 export class Event {
   @PrimaryGeneratedColumn('uuid')
   id: string;

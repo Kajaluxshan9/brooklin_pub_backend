@@ -747,6 +747,7 @@ export class NewsletterService {
                     <p style="margin: 0 0 10px; font-size: 12px; font-weight: 700; color: #8B6914; letter-spacing: 2px; text-transform: uppercase;">Your Promo Code</p>
                     <p class="promo-code" style="margin: 0; font-size: 36px; font-weight: 700; color: #2A1509; letter-spacing: 12px; font-family: 'Courier New', Courier, monospace;">${opts.promoCode}</p>
                     <p style="margin: 12px 0 0; font-size: 12px; color: rgba(42,21,9,0.45);">One-time use &mdash; Show this code at the pub</p>
+                    <p style="margin: 10px 0 0; font-size: 11px; color: rgba(42,21,9,0.38); font-style: italic;">Valid for dine-in only. Excludes special days and private events.</p>
                   </td>
                 </tr>
               </table>
