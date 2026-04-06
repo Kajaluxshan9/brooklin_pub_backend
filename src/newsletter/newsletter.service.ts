@@ -101,8 +101,12 @@ export class NewsletterService {
       };
     }
 
+    // Get next subscriber number
+    const nextNumber = await this.getNextSubscriberNumber();
+
     const subscriber = this.subscriberRepository.create({
       email,
+      subscriberNumber: nextNumber,
       unsubscribeToken: crypto.randomUUID(),
     });
 
@@ -640,6 +644,17 @@ export class NewsletterService {
   // ─── Private Helpers ────────────────────────────────────────────
 
   /**
+   * Get the next sequential subscriber number.
+   */
+  private async getNextSubscriberNumber(): Promise<number> {
+    const result = await this.subscriberRepository
+      .createQueryBuilder('subscriber')
+      .select('COALESCE(MAX(subscriber.subscriberNumber), 0)', 'maxNum')
+      .getRawOne();
+    return (result?.maxNum ?? 0) + 1;
+  }
+
+  /**
    * Generate a cryptographically secure 8-character promo code (A-Z, 0-9).
    */
   private generatePromoCode(): string {
@@ -655,6 +670,7 @@ export class NewsletterService {
 
     const html = this.buildPromoEmailTemplate({
       promoCode: subscriber.promoCode!,
+      subscriberNumber: subscriber.subscriberNumber,
       unsubscribeUrl,
     });
 
@@ -667,6 +683,7 @@ export class NewsletterService {
 
   private buildPromoEmailTemplate(opts: {
     promoCode: string;
+    subscriberNumber: number;
     unsubscribeUrl: string;
   }): string {
     return `<!DOCTYPE html>
@@ -730,7 +747,7 @@ export class NewsletterService {
           <tr>
             <td class="content-pad" style="background-color: #FFFCF8; padding: 24px 40px 0;">
               <p style="margin: 0; font-size: 15px; line-height: 1.75; color: #5C4033;">
-                You are eligible for a complimentary appetizer at Brooklin Pub.<br />
+                As our subscriber <strong>#${opts.subscriberNumber}</strong>, you are eligible for a complimentary appetizer at Brooklin Pub.<br />
                 Visit us and show your promo code to enjoy your one-time offer.<br />
                 Thank you for subscribing to our newsletter.<br />
                 You may also randomly receive special gifts from us in the future.
@@ -862,9 +879,9 @@ export class NewsletterService {
     const html = this.buildEmailTemplate({
       preheader: 'Welcome to the Brooklin Pub Newsletter!',
       heading: 'Welcome to Brooklin Pub!',
-      title: "You're on the list!",
+      title: `You're Subscriber #${subscriber.subscriberNumber}!`,
       description:
-        "Thanks for subscribing to the Brooklin Pub newsletter! You'll be the first to hear about our latest events, specials, and everything happening at Brooklin's favourite neighbourhood pub.",
+        `Thanks for subscribing to the Brooklin Pub newsletter! You are our subscriber #${subscriber.subscriberNumber}. You'll be the first to hear about our latest events, specials, and everything happening at Brooklin's favourite neighbourhood pub.`,
       ctaText: 'Explore Our Menu',
       ctaUrl: `${this.frontendUrl}/menu`,
       unsubscribeUrl,

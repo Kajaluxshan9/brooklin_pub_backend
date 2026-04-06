@@ -11,6 +11,10 @@ export class Subscriber {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  /** Sequential subscriber number, assigned on subscription (1 = first subscriber ever). */
+  @Column({ type: 'int', unique: true, nullable: false })
+  subscriberNumber: number;
+
   @Column({ unique: true })
   email: string;
 
