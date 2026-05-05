@@ -35,8 +35,8 @@ export class EventsService {
     });
     const savedEvent = await this.eventRepository.save(event);
 
-    // Notify subscribers — schedule for displayStartDate or send immediately
-    if (savedEvent.isActive) {
+    // Private parties are not broadcast to newsletter subscribers
+    if (savedEvent.isActive && savedEvent.type !== 'private_party') {
       const sendNow =
         await this.notificationScheduler.scheduleOrSendImmediately(
           NotificationType.EVENT,
@@ -98,9 +98,42 @@ export class EventsService {
   async update(id: string, updateEventDto: UpdateEventDto): Promise<Event> {
     const event = await this.findOne(id);
 
+    const wasActive = event.isActive;
+    const oldDisplayStart = event.displayStartDate?.toISOString();
+
     Object.assign(event, updateEventDto);
 
-    return await this.eventRepository.save(event);
+    const saved = await this.eventRepository.save(event);
+
+    const isNowActive = saved.isActive;
+    const newDisplayStart = saved.displayStartDate?.toISOString();
+    const displayDateChanged = newDisplayStart !== oldDisplayStart;
+
+    if (!isNowActive || saved.type === 'private_party') {
+      // Deactivated or private party — cancel any pending notification
+      await this.notificationScheduler.cancelPendingNotifications(
+        NotificationType.EVENT,
+        id,
+      );
+    } else if (isNowActive && (!wasActive || displayDateChanged)) {
+      // Activated (or rescheduled) — cancel old pending and schedule/send fresh
+      const sendNow =
+        await this.notificationScheduler.scheduleOrSendImmediately(
+          NotificationType.EVENT,
+          id,
+          saved.displayStartDate,
+        );
+
+      if (sendNow) {
+        this.newsletterService
+          .notifyNewEvent(saved)
+          .catch((err) =>
+            this.logger.error('Failed to send event newsletter on update', err),
+          );
+      }
+    }
+
+    return saved;
   }
 
   async remove(id: string): Promise<void> {

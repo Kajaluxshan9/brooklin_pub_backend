@@ -12,7 +12,7 @@ import * as crypto from 'crypto';
 import { Subscriber } from '../entities/subscriber.entity';
 import { SubscribeDto, GetSubscribersQueryDto } from './dto';
 import { getRequiredEnv, getOptionalEnv } from '../config/env.validation';
-import { ILike, IsNull, Not } from 'typeorm';
+import { ILike } from 'typeorm';
 
 @Injectable()
 export class NewsletterService {
@@ -357,6 +357,7 @@ export class NewsletterService {
     description: string;
     type: string;
     eventStartDate: Date;
+    eventEndDate?: Date | null;
     imageUrls?: string[];
   }): Promise<void> {
     const subscribers = await this.findActive();
@@ -365,29 +366,46 @@ export class NewsletterService {
       return;
     }
 
-    const eventDate = new Date(event.eventStartDate).toLocaleDateString(
-      'en-US',
-      {
+    const tz = 'America/Toronto';
+    const start = new Date(event.eventStartDate);
+    const end = event.eventEndDate ? new Date(event.eventEndDate) : null;
+
+    const fmtDate = (d: Date) =>
+      d.toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric',
-        timeZone: 'America/Toronto',
-      },
-    );
-
-    const eventTime = new Date(event.eventStartDate).toLocaleTimeString(
-      'en-US',
-      {
+        timeZone: tz,
+      });
+    const fmtTime = (d: Date) =>
+      d.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
-        timeZone: 'America/Toronto',
-      },
-    );
+        timeZone: tz,
+      });
 
-    // Type-specific labels and emoji
+    const startDate = fmtDate(start);
+    const startTime = fmtTime(start);
+
+    // Determine whether start and end fall on the same calendar day in Toronto
+    const sameDay =
+      end &&
+      start.toLocaleDateString('en-US', { timeZone: tz }) ===
+        end.toLocaleDateString('en-US', { timeZone: tz });
+
+    let dateDisplay: string;
+    if (!end) {
+      dateDisplay = `${startDate} · ${startTime}`;
+    } else if (sameDay) {
+      // e.g. "Saturday, May 10, 2025 · 10:00 AM – 10:00 PM"
+      dateDisplay = `${startDate} · ${startTime} – ${fmtTime(end)}`;
+    } else {
+      // e.g. "Friday, May 9 · 7:00 PM – Saturday, May 10 · 2:00 AM"
+      dateDisplay = `${startDate} · ${startTime} – ${fmtDate(end)} · ${fmtTime(end)}`;
+    }
+
     const eventMeta = this.getEventTypeMeta(event.type);
-
     const eventUrl = `${this.frontendUrl}/events`;
     const imageUrl =
       event.imageUrls && event.imageUrls.length > 0
@@ -398,11 +416,11 @@ export class NewsletterService {
       const unsubscribeUrl = `${this.frontendUrl}/unsubscribe?token=${subscriber.unsubscribeToken}`;
 
       const html = this.buildEmailTemplate({
-        preheader: `${eventMeta.label}: ${event.title} — ${eventDate} at ${eventTime}`,
+        preheader: `${eventMeta.label}: ${event.title} — ${dateDisplay}`,
         heading: eventMeta.heading,
         title: event.title,
         description: event.description,
-        date: `${eventDate} at ${eventTime}`,
+        date: dateDisplay,
         imageUrl,
         ctaText: eventMeta.ctaText,
         ctaUrl: eventUrl,
@@ -411,7 +429,7 @@ export class NewsletterService {
 
       this.sendMail(
         subscriber.email,
-        `${eventMeta.emoji} ${eventMeta.label}: ${event.title} — ${eventDate}`,
+        `${eventMeta.emoji} ${eventMeta.label}: ${event.title} — ${startDate}`,
         html,
       ).catch((err) =>
         this.logger.error(
@@ -455,21 +473,66 @@ export class NewsletterService {
       special.specialCategory ?? null,
     );
 
-    // For seasonal specials, include validity dates
+    const tz = 'America/Toronto';
+
+    const fmtLong = (d: Date) =>
+      new Date(d).toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        timeZone: tz,
+      });
+    const fmtShort = (d: Date) =>
+      new Date(d).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        timeZone: tz,
+      });
+    const fmtTime = (d: Date) =>
+      new Date(d).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone: tz,
+      });
+
+    const isSameDay = (a: Date, b: Date) =>
+      new Date(a).toLocaleDateString('en-US', { timeZone: tz }) ===
+      new Date(b).toLocaleDateString('en-US', { timeZone: tz });
+
+    // Build date info based on special type
     let dateInfo: string | undefined;
+
     if (special.type === 'seasonal' && special.specialStartDate) {
-      const fmt = (d: Date) =>
-        new Date(d).toLocaleDateString('en-US', {
-          month: 'long',
-          day: 'numeric',
-          timeZone: 'America/Toronto',
-        });
-      dateInfo = special.specialEndDate
-        ? `${fmt(special.specialStartDate)} — ${fmt(special.specialEndDate)}`
-        : `Starting ${fmt(special.specialStartDate)}`;
+      const start = new Date(special.specialStartDate);
+      if (!special.specialEndDate) {
+        dateInfo = `Starting ${fmtShort(start)}`;
+      } else {
+        const end = new Date(special.specialEndDate);
+        dateInfo = isSameDay(start, end)
+          ? `${fmtShort(start)} · ${fmtTime(start)} – ${fmtTime(end)}`
+          : `${fmtShort(start)} – ${fmtShort(end)}`;
+      }
+    } else if (
+      (special.type === 'game_time' ||
+        special.type === 'day_time' ||
+        special.type === 'chef') &&
+      special.specialStartDate
+    ) {
+      const start = new Date(special.specialStartDate);
+      if (!special.specialEndDate) {
+        dateInfo = `${fmtLong(start)} · ${fmtTime(start)}`;
+      } else {
+        const end = new Date(special.specialEndDate);
+        dateInfo = isSameDay(start, end)
+          ? `${fmtLong(start)} · ${fmtTime(start)} – ${fmtTime(end)}`
+          : `${fmtLong(start)} · ${fmtTime(start)} – ${fmtLong(end)} · ${fmtTime(end)}`;
+      }
     }
 
-    const specialUrl = `${this.frontendUrl}/specials`;
+    const specialUrl =
+      special.type === 'daily'
+        ? `${this.frontendUrl}/special/daily`
+        : `${this.frontendUrl}/special/other`;
     const imageUrl =
       special.imageUrls && special.imageUrls.length > 0
         ? this.getFullImageUrl(special.imageUrls[0])
@@ -479,7 +542,9 @@ export class NewsletterService {
       const unsubscribeUrl = `${this.frontendUrl}/unsubscribe?token=${subscriber.unsubscribeToken}`;
 
       const html = this.buildEmailTemplate({
-        preheader: `${specialMeta.label}: ${special.title}`,
+        preheader: dateInfo
+          ? `${specialMeta.label}: ${special.title} — ${dateInfo}`
+          : `${specialMeta.label}: ${special.title}`,
         heading: specialMeta.heading,
         title: special.title,
         description: special.description,
@@ -603,31 +668,31 @@ export class NewsletterService {
             ? 'Late Night Special at Brooklin Pub!'
             : 'New Daily Special at Brooklin Pub!',
         emoji: isLateNight ? '🌙' : '📅',
-        ctaText: "View Today's Special",
+        ctaText: dayName ? `View ${dayName}'s Special` : 'View the Special',
       },
       game_time: {
         label: 'Game Time Special',
         heading: 'Game Time Special at Brooklin Pub!',
         emoji: '🏈',
-        ctaText: 'View Game Time Deal',
+        ctaText: 'See Other Specials',
       },
       day_time: {
         label: 'Day Time Special',
         heading: 'Day Time Special at Brooklin Pub!',
         emoji: '☀️',
-        ctaText: 'View Day Time Deal',
+        ctaText: 'See Other Specials',
       },
       chef: {
         label: "Chef's Special",
         heading: "New Chef's Special at Brooklin Pub!",
         emoji: '👨‍🍳',
-        ctaText: "See the Chef's Pick",
+        ctaText: 'See Other Specials',
       },
       seasonal: {
         label: 'Seasonal Special',
         heading: 'New Seasonal Special at Brooklin Pub!',
         emoji: '🍂',
-        ctaText: 'View Seasonal Offer',
+        ctaText: 'See Other Specials',
       },
     };
 
@@ -636,7 +701,7 @@ export class NewsletterService {
         label: 'New Special',
         heading: 'New Special at Brooklin Pub!',
         emoji: '⭐',
-        ctaText: 'View Special',
+        ctaText: 'See Other Specials',
       }
     );
   }
@@ -894,6 +959,24 @@ export class NewsletterService {
     );
   }
 
+  private escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  private formatDescription(raw: string): string {
+    const escaped = this.escapeHtml(raw);
+    return escaped
+      .replace(
+        /\n\n/g,
+        '</p><p style="margin: 16px 0 0; font-size: 15px; line-height: 1.75; color: #5C4033;">',
+      )
+      .replace(/\n/g, '<br/>');
+  }
+
   private buildEmailTemplate(opts: {
     preheader: string;
     heading: string;
@@ -905,11 +988,15 @@ export class NewsletterService {
     ctaUrl: string;
     unsubscribeUrl: string;
   }): string {
+    const safeTitle = this.escapeHtml(opts.title);
+    const safeHeading = this.escapeHtml(opts.heading);
+    const safeDescription = this.formatDescription(opts.description);
+
     const imageBlock = opts.imageUrl
       ? `
           <tr>
             <td class="content-pad" style="background-color: #FFFCF8; padding: 24px 40px 0;">
-              <img src="${opts.imageUrl}" alt="${opts.title}" style="width: 100%; max-height: 340px; object-fit: cover; border-radius: 14px; border: 1px solid rgba(42,21,9,0.06);" />
+              <img src="${opts.imageUrl}" alt="${safeTitle}" style="width: 100%; height: auto; display: block; border-radius: 14px; border: 1px solid rgba(42,21,9,0.06);" />
             </td>
           </tr>`
       : '';
@@ -973,7 +1060,7 @@ export class NewsletterService {
           <!-- Hero heading -->
           <tr>
             <td class="content-pad" style="background-color: #FFFCF8; padding: 36px 40px 0;">
-              <h1 class="hero-text" style="margin: 0; font-size: 26px; font-weight: 700; color: #2A1509; font-family: Georgia, 'Times New Roman', serif; line-height: 1.3;">${opts.heading}</h1>
+              <h1 class="hero-text" style="margin: 0; font-size: 26px; font-weight: 700; color: #2A1509; font-family: Georgia, 'Times New Roman', serif; line-height: 1.3;">${safeHeading}</h1>
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top: 14px;">
                 <tr>
                   <td style="width: 44px; height: 2px; background-color: #D9A756; border-radius: 2px;"></td>
@@ -988,9 +1075,9 @@ export class NewsletterService {
           <!-- Body content -->
           <tr>
             <td class="content-pad" style="background-color: #FFFCF8; padding: 24px 40px 0;">
-              <h2 style="margin: 0 0 4px; font-size: 18px; font-weight: 700; color: #6A3A1E; font-family: Georgia, 'Times New Roman', serif;">${opts.title}</h2>
+              <h2 style="margin: 0 0 4px; font-size: 18px; font-weight: 700; color: #6A3A1E; font-family: Georgia, 'Times New Roman', serif;">${safeTitle}</h2>
               ${dateBlock}
-              <p style="margin: 16px 0 0; font-size: 15px; line-height: 1.75; color: #5C4033;">${opts.description}</p>
+              <p style="margin: 16px 0 0; font-size: 15px; line-height: 1.75; color: #5C4033;">${safeDescription}</p>
             </td>
           </tr>
 

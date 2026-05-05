@@ -168,10 +168,41 @@ export class AnnouncementsService {
       throw new BadRequestException('No active subscribers to send to');
     }
 
-    // Mark as sending
+    // Mark as SENDING and return immediately — dispatch runs in background
     announcement.status = AnnouncementStatus.SENDING;
-    await this.announcementRepository.save(announcement);
+    const saved = await this.announcementRepository.save(announcement);
 
+    this.dispatchAnnouncement(saved, subscribers).catch((err) =>
+      this.logger.error(
+        `Unexpected error dispatching announcement ${id}`,
+        err,
+      ),
+    );
+
+    return saved;
+  }
+
+  /**
+   * Reset a stuck SENDING announcement back to DRAFT so it can be re-sent.
+   * Use when the server crashed mid-dispatch and the announcement is stuck.
+   */
+  async resetStuckSending(id: string): Promise<Announcement> {
+    const announcement = await this.findOne(id);
+
+    if (announcement.status !== AnnouncementStatus.SENDING) {
+      throw new BadRequestException(
+        'Only announcements stuck in SENDING status can be reset',
+      );
+    }
+
+    announcement.status = AnnouncementStatus.DRAFT;
+    return this.announcementRepository.save(announcement);
+  }
+
+  private async dispatchAnnouncement(
+    announcement: Announcement,
+    subscribers: Subscriber[],
+  ): Promise<void> {
     const meta = this.getAnnouncementTypeMeta(
       announcement.type,
       announcement.priority,
@@ -214,7 +245,6 @@ export class AnnouncementsService {
       }
     }
 
-    // Update announcement record
     announcement.status =
       successCount > 0 ? AnnouncementStatus.SENT : AnnouncementStatus.FAILED;
     announcement.recipientCount = successCount;
@@ -224,8 +254,6 @@ export class AnnouncementsService {
     this.logger.log(
       `Announcement "${announcement.title}" sent to ${successCount}/${subscribers.length} subscribers`,
     );
-
-    return announcement;
   }
 
   // ─── Type-Specific Messaging ──────────────────────────────────
@@ -471,13 +499,19 @@ export class AnnouncementsService {
                     <table role="presentation" cellpadding="0" cellspacing="0">
                       <tr>
                         <td style="padding: 0 6px;">
-                          <a href="https://www.facebook.com/brooklinpub" style="display: inline-block; width: 30px; height: 30px; border-radius: 8px; background-color: rgba(42,21,9,0.06); text-align: center; line-height: 30px; font-size: 13px; color: #8B6914; text-decoration: none;" title="Facebook">f</a>
+                          <a href="https://www.facebook.com/brooklinpub" style="display: inline-block; text-decoration: none;" title="Facebook">
+                            <img src="${this.backendPublicUrl}/uploads/assets/icon-facebook.svg" width="30" height="30" alt="Facebook" style="display: block; border: 0;" />
+                          </a>
                         </td>
                         <td style="padding: 0 6px;">
-                          <a href="https://www.instagram.com/brooklinpubngrill/" style="display: inline-block; width: 30px; height: 30px; border-radius: 8px; background-color: rgba(42,21,9,0.06); text-align: center; line-height: 30px; font-size: 13px; color: #8B6914; text-decoration: none;" title="Instagram">&#9679;</a>
+                          <a href="https://www.instagram.com/brooklinpubngrill/" style="display: inline-block; text-decoration: none;" title="Instagram">
+                            <img src="${this.backendPublicUrl}/uploads/assets/icon-instagram.svg" width="30" height="30" alt="Instagram" style="display: block; border: 0;" />
+                          </a>
                         </td>
                         <td style="padding: 0 6px;">
-                          <a href="https://www.tiktok.com/@brooklinpubngrill" style="display: inline-block; width: 30px; height: 30px; border-radius: 8px; background-color: rgba(42,21,9,0.06); text-align: center; line-height: 30px; font-size: 13px; color: #8B6914; text-decoration: none;" title="TikTok">&#9835;</a>
+                          <a href="https://www.tiktok.com/@brooklinpubngrill" style="display: inline-block; text-decoration: none;" title="TikTok">
+                            <img src="${this.backendPublicUrl}/uploads/assets/icon-tiktok.svg" width="30" height="30" alt="TikTok" style="display: block; border: 0;" />
+                          </a>
                         </td>
                       </tr>
                     </table>

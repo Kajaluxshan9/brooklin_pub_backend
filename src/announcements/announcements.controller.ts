@@ -55,4 +55,9 @@ export class AnnouncementsController {
   send(@Param('id', ParseUUIDPipe) id: string) {
     return this.announcementsService.send(id);
   }
+
+  @Post(':id/reset-sending')
+  resetStuckSending(@Param('id', ParseUUIDPipe) id: string) {
+    return this.announcementsService.resetStuckSending(id);
+  }
 }

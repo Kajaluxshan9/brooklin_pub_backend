@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual } from 'typeorm';
+import { Repository, LessThanOrEqual, DataSource } from 'typeorm';
 import {
   ScheduledNotification,
   NotificationType,
@@ -23,11 +23,16 @@ export class NotificationSchedulerService {
     @InjectRepository(Event)
     private eventRepo: Repository<Event>,
     private newsletterService: NewsletterService,
+    private dataSource: DataSource,
   ) {}
 
   /**
    * Runs every minute — picks up all PENDING notifications whose
    * scheduledFor time has passed and dispatches them.
+   *
+   * Each notification is claimed atomically (PENDING → SENT/FAILED via a
+   * conditional UPDATE) before dispatch so that concurrent instances cannot
+   * process the same row twice.
    */
   @Cron(CronExpression.EVERY_MINUTE)
   async processScheduledNotifications(): Promise<void> {
@@ -47,18 +52,35 @@ export class NotificationSchedulerService {
     );
 
     for (const notification of dueNotifications) {
+      // Atomically claim this notification — only one instance will succeed.
+      const claimed = await this.dataSource
+        .createQueryBuilder()
+        .update(ScheduledNotification)
+        .set({ status: NotificationStatus.SENT, sentAt: new Date() })
+        .where('id = :id AND status = :status', {
+          id: notification.id,
+          status: NotificationStatus.PENDING,
+        })
+        .execute();
+
+      if (claimed.affected === 0) {
+        // Another instance already claimed it — skip
+        continue;
+      }
+
       try {
         await this.dispatchNotification(notification);
-        notification.status = NotificationStatus.SENT;
-        notification.sentAt = new Date();
       } catch (err) {
         this.logger.error(
           `Failed to dispatch notification ${notification.id}`,
           err,
         );
-        notification.status = NotificationStatus.FAILED;
+        // Dispatch failed after claim — mark as FAILED so admin can see it
+        await this.notificationRepo.update(notification.id, {
+          status: NotificationStatus.FAILED,
+          sentAt: null,
+        });
       }
-      await this.notificationRepo.save(notification);
     }
   }
 

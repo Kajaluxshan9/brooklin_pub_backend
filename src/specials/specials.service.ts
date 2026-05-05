@@ -72,8 +72,44 @@ export class SpecialsService {
     id: string,
     updateSpecialDto: UpdateSpecialDto,
   ): Promise<Special> {
+    const existing = await this.findById(id);
+
+    const wasActive = existing.isActive;
+    const oldDisplayStart = existing.displayStartDate?.toISOString();
+
     await this.specialRepository.update(id, updateSpecialDto);
-    return this.findById(id);
+    const saved = await this.findById(id);
+
+    const isNowActive = saved.isActive;
+    const newDisplayStart = saved.displayStartDate?.toISOString();
+    const displayDateChanged = newDisplayStart !== oldDisplayStart;
+
+    if (!isNowActive) {
+      await this.notificationScheduler.cancelPendingNotifications(
+        NotificationType.SPECIAL,
+        id,
+      );
+    } else if (isNowActive && (!wasActive || displayDateChanged)) {
+      const sendNow =
+        await this.notificationScheduler.scheduleOrSendImmediately(
+          NotificationType.SPECIAL,
+          id,
+          saved.displayStartDate,
+        );
+
+      if (sendNow) {
+        this.newsletterService
+          .notifyNewSpecial(saved)
+          .catch((err) =>
+            this.logger.error(
+              'Failed to send special newsletter on update',
+              err,
+            ),
+          );
+      }
+    }
+
+    return saved;
   }
 
   async remove(id: string): Promise<void> {
@@ -105,6 +141,33 @@ export class SpecialsService {
   async toggleStatus(id: string): Promise<Special> {
     const special = await this.findById(id);
     special.isActive = !special.isActive;
-    return this.specialRepository.save(special);
+    const saved = await this.specialRepository.save(special);
+
+    if (!saved.isActive) {
+      await this.notificationScheduler.cancelPendingNotifications(
+        NotificationType.SPECIAL,
+        id,
+      );
+    } else {
+      const sendNow =
+        await this.notificationScheduler.scheduleOrSendImmediately(
+          NotificationType.SPECIAL,
+          id,
+          saved.displayStartDate,
+        );
+
+      if (sendNow) {
+        this.newsletterService
+          .notifyNewSpecial(saved)
+          .catch((err) =>
+            this.logger.error(
+              'Failed to send special newsletter on toggle',
+              err,
+            ),
+          );
+      }
+    }
+
+    return saved;
   }
 }
