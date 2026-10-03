@@ -69,6 +69,16 @@ interface EnvConfig {
 
   // Server Host
   HOST: string;
+
+  // Gift cards (optional)
+  GIFTCARD_PIN_SECRET?: string;
+  GIFTCARD_SLIP_DIR?: string;
+
+  // Force auth cookie Secure flag on/off (default: on in production)
+  COOKIE_SECURE?: string;
+
+  // Reverse proxy hops to trust for client IP (e.g. 1 behind nginx)
+  TRUST_PROXY?: string;
 }
 
 const REQUIRED_ENV_VARS: (keyof EnvConfig)[] = [

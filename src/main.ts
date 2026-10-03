@@ -47,6 +47,16 @@ async function bootstrap() {
   });
   Logger.log(`Serving uploads from: ${absoluteUploadDir}`);
 
+  // Behind a reverse proxy, trust X-Forwarded-For so req.ip is the real client
+  // (needed for per-IP rate limits). Only set when a proxy is actually in front.
+  const trustProxy = getOptionalEnv('TRUST_PROXY');
+  if (trustProxy) {
+    app.set(
+      'trust proxy',
+      /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy,
+    );
+  }
+
   // Enable cookie parser
   app.use(cookieParser());
 

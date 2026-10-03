@@ -14,6 +14,9 @@ import { Todo } from './entities/todo.entity';
 import { Subscriber } from './entities/subscriber.entity';
 import { ScheduledNotification } from './entities/scheduled-notification.entity';
 import { Announcement } from './entities/announcement.entity';
+import { GiftCard } from './entities/gift-card.entity';
+import { GiftCardTransaction } from './entities/gift-card-transaction.entity';
+import { GiftCardSettings } from './entities/gift-card-settings.entity';
 
 config();
 
@@ -60,6 +63,9 @@ export const AppDataSource = new DataSource({
     ScheduledNotification,
     Announcement,
     MenuItemMeasurement,
+    GiftCard,
+    GiftCardTransaction,
+    GiftCardSettings,
     'src/entities/**/*.entity.ts',
   ],
   migrations: ['src/migrations/**/*.ts'],

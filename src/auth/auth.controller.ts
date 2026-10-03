@@ -8,8 +8,11 @@ import {
   Res,
   Patch,
   Param,
+  Req,
+  UnauthorizedException,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request as ExpressRequest, Response } from 'express';
+import { LoginThrottleService } from './login-throttle.service';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -21,28 +24,63 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { SuperAdminGuard } from './guards/super-admin.guard';
-import { getRequiredEnv } from '../config/env.validation';
+import { getOptionalEnv, getRequiredEnv } from '../config/env.validation';
+
+/**
+ * Auth cookie flags. Secure (HTTPS-only) in production by default;
+ * COOKIE_SECURE=true/false overrides it for a specific environment.
+ */
+function authCookieOptions() {
+  const override = getOptionalEnv('COOKIE_SECURE');
+  const secure =
+    override !== undefined
+      ? override === 'true'
+      : getRequiredEnv('NODE_ENV') === 'production';
+  return {
+    httpOnly: true,
+    secure,
+    sameSite: 'lax' as const,
+    path: '/',
+  };
+}
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private loginThrottle: LoginThrottleService,
+  ) {}
 
   @Post('login')
   async login(
     @Body() loginDto: LoginDto,
+    @Req() req: ExpressRequest,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.login(loginDto);
+    const ip = req.ip ?? 'unknown';
+    // Blocked callers are refused before the password is even checked.
+    this.loginThrottle.assertAllowed(loginDto.email, ip);
+
+    let result: Awaited<ReturnType<AuthService['login']>>;
+    try {
+      result = await this.authService.login(loginDto);
+    } catch (err) {
+      // Only wrong email/password counts; e.g. "verify your email" does not.
+      if (
+        err instanceof UnauthorizedException &&
+        err.message === 'Invalid credentials'
+      ) {
+        this.loginThrottle.recordFailure(loginDto.email, ip);
+      }
+      throw err;
+    }
+    this.loginThrottle.recordSuccess(loginDto.email);
 
     // Set the JWT token as an httpOnly cookie
     const cookieMaxAge = parseInt(getRequiredEnv('COOKIE_MAX_AGE'), 10);
-    const isProduction = getRequiredEnv('NODE_ENV') === 'production';
     res.cookie('access_token', result.access_token, {
-      httpOnly: true,
-      secure: false, // Set to true only when using HTTPS with proper domain
-      sameSite: 'lax', // Use 'lax' for cross-origin compatibility
+      ...authCookieOptions(),
       maxAge: cookieMaxAge,
-      path: '/',
     });
 
     // Return user data without the token
@@ -54,12 +92,7 @@ export class AuthController {
 
   @Post('logout')
   logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('access_token', {
-      httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      path: '/',
-    });
+    res.clearCookie('access_token', authCookieOptions());
     return { message: 'Logged out successfully' };
   }
 

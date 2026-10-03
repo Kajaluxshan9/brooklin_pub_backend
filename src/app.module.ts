@@ -34,6 +34,10 @@ import { StoryCategory } from './entities/story-category.entity';
 import { Subscriber } from './entities/subscriber.entity';
 import { ScheduledNotification } from './entities/scheduled-notification.entity';
 import { Announcement } from './entities/announcement.entity';
+import { GiftCardsModule } from './giftcards/giftcards.module';
+import { GiftCard } from './entities/gift-card.entity';
+import { GiftCardTransaction } from './entities/gift-card-transaction.entity';
+import { GiftCardSettings } from './entities/gift-card-settings.entity';
 
 @Module({
   imports: [
@@ -67,6 +71,9 @@ import { Announcement } from './entities/announcement.entity';
             Subscriber,
             ScheduledNotification,
             Announcement,
+            GiftCard,
+            GiftCardTransaction,
+            GiftCardSettings,
           ],
           synchronize:
             configService.getOrThrow<string>('NODE_ENV') !== 'production',
@@ -96,6 +103,7 @@ import { Announcement } from './entities/announcement.entity';
     NewsletterModule,
     NotificationsModule,
     AnnouncementsModule,
+    GiftCardsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

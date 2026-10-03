@@ -236,3 +236,5 @@ uploads/stories
 .dockerignore
 Dockerfile*
 docker-compose*.yml
+# Gift card payment slips (private customer data)
+private_uploads/
